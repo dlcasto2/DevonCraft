@@ -1,0 +1,852 @@
+#include <cassert>
+#include <cstdlib>
+#include <algorithm>
+#include <initializer_list>
+#include <libndls.h>
+
+#include "world.h"
+#include "chunk.h"
+#include "oregen.h"
+#include "water.h"
+#include "biome.h"
+#include "trees.h"
+#include "lighting.h"
+#include "fastmath.h"
+#include "blockrenderer.h"
+
+//Texture with "Loading" written on it
+#include "textures/loadingtext.h"
+
+#ifndef NDEBUG
+    #define debug(...) printf(__VA_ARGS__)
+#else
+    #define debug(...)
+#endif
+
+constexpr const int Chunk::SIZE;
+int Chunk::pos_indices[SIZE + 1][SIZE + 1][SIZE + 1];
+
+Chunk::Chunk(int x, int y, int z)
+    : x(x), y(y), z(z), abs_x(x*SIZE*BLOCK_SIZE), abs_y(y*SIZE*BLOCK_SIZE), abs_z(z*SIZE*BLOCK_SIZE), aabb(abs_x, abs_y, abs_z, abs_x + SIZE*BLOCK_SIZE, abs_y + SIZE*BLOCK_SIZE, abs_z + SIZE*BLOCK_SIZE)
+{}
+
+static constexpr bool inBounds(int x, int y, int z)
+{
+    return x >= 0 && y >= 0 && z >= 0 && x < Chunk::SIZE && y < Chunk::SIZE && z < Chunk::SIZE;
+}
+
+unsigned int Chunk::getPosition(unsigned int x, unsigned int y, unsigned int z)
+{
+    assert (x <= Chunk::SIZE && y <= Chunk::SIZE && z <= Chunk::SIZE);
+
+    if(pos_indices[x][y][z] == -1)
+    {
+        pos_indices[x][y][z] = positions.size();
+        positions.emplace_back(VECTOR3{x*BLOCK_SIZE, y*BLOCK_SIZE, z*BLOCK_SIZE});
+    }
+
+    return pos_indices[x][y][z];
+}
+
+void Chunk::addAlignedVertex(const int x, const int y, const int z, GLFix u, GLFix v, const COLOR c)
+{
+    vertices.emplace_back(IndexedVertex{getPosition(x, y, z), u, v, c});
+}
+
+void Chunk::addUnalignedVertex(const GLFix x, const GLFix y, const GLFix z, const GLFix u, const GLFix v, const COLOR c)
+{
+    vertices_unaligned.emplace_back(VERTEX{x, y, z, u, v, c});
+}
+
+void Chunk::addUnalignedVertex(const VERTEX &v)
+{
+    vertices_unaligned.push_back(v);
+}
+
+void Chunk::addAnimation(const Chunk::Animation &animation)
+{
+    animations.push_back(animation);
+}
+
+void Chunk::addParticle(const Particle &particle)
+{
+    particles.push_back(particle);
+}
+
+void Chunk::addAlignedVertexQuad(const int x, const int y, const int z, GLFix u, GLFix v, const COLOR c)
+{
+    vertices_quad.emplace_back(IndexedVertex{getPosition(x, y, z), u, v, c});
+}
+
+void Chunk::addAlignedVertexForceColor(const int x, const int y, const int z, GLFix u, GLFix v, const COLOR c)
+{
+    vertices_color.emplace_back(IndexedVertex{getPosition(x, y, z), u, v, c});
+}
+
+void Chunk::setLocalBlockSideRendered(const int x, const int y, const int z, const BLOCK_SIDE_BITFIELD side)
+{
+    sides_rendered[x][y][z] |= side;
+}
+
+bool Chunk::isLocalBlockSideRendered(const int x, const int y, const int z, const BLOCK_SIDE_BITFIELD side)
+{
+    return sides_rendered[x][y][z] & side;
+}
+
+void Chunk::buildGeometry()
+{
+    drawLoadingtext(8);
+
+    std::fill(pos_indices[0][0] + 0, pos_indices[SIZE][SIZE] + SIZE + 1, -1);
+
+    positions.clear();
+    vertices.clear();
+    vertices_quad.clear();
+    vertices_color.clear();
+    vertices_unaligned.clear();
+    animations.clear();
+
+    debug("Updating chunk %d:%d:%d...\n", x, y, z);
+
+    debug("\tUpdating geometry...\t");
+
+    //Bottom of world doesn't need to be drawn
+    int y_start = this->y == 0 ? 0 : -1;
+
+    //Now go through map and search for transparent blocks and draw only the sides adjacent to them
+    for(int x = -1; x <= SIZE; x++)
+    {
+        for(int y = y_start; y <= SIZE; y++)
+        {
+            for(int z = -1; z <= SIZE; z++)
+            {
+                BLOCK_WDATA block = getGlobalBlockRelative(x, y, z), block1;
+
+                if(block != BLOCK_AIR && global_block_renderer.isOpaque(block))
+                    continue;
+
+                if(inBounds(x - 1, y, z) && (block1 = blocks[x - 1][y][z]) != BLOCK_AIR && !(sides_rendered[x - 1][y][z] & BLOCK_RIGHT_BIT))
+                    global_block_renderer.geometryNormalBlock(block1, x - 1, y, z, BLOCK_RIGHT, *this);
+
+                if(inBounds(x + 1, y, z) && (block1 = blocks[x + 1][y][z]) != BLOCK_AIR && !(sides_rendered[x + 1][y][z] & BLOCK_LEFT_BIT))
+                    global_block_renderer.geometryNormalBlock(block1, x + 1, y, z, BLOCK_LEFT, *this);
+
+                if(inBounds(x, y - 1, z) && (block1 = blocks[x][y - 1][z]) != BLOCK_AIR && !(sides_rendered[x][y - 1][z] & BLOCK_TOP_BIT))
+                    global_block_renderer.geometryNormalBlock(block1, x, y - 1, z, BLOCK_TOP, *this);
+
+                if(inBounds(x, y + 1, z) && (block1 = blocks[x][y + 1][z]) != BLOCK_AIR && !(sides_rendered[x][y + 1][z] & BLOCK_BOTTOM_BIT))
+                    global_block_renderer.geometryNormalBlock(block1, x, y + 1, z, BLOCK_BOTTOM, *this);
+
+                if(inBounds(x, y, z - 1) && (block1 = blocks[x][y][z - 1]) != BLOCK_AIR && !(sides_rendered[x][y][z - 1] & BLOCK_BACK_BIT))
+                    global_block_renderer.geometryNormalBlock(block1, x, y, z - 1, BLOCK_BACK, *this);
+
+                if(inBounds(x, y, z + 1) && (block1 = blocks[x][y][z + 1]) != BLOCK_AIR && !(sides_rendered[x][y][z + 1] & BLOCK_FRONT_BIT))
+                    global_block_renderer.geometryNormalBlock(block1, x, y, z + 1, BLOCK_FRONT, *this);
+            }
+        }
+    }
+
+    //Special blocks
+    GLFix pos_x = 0;
+    for(int x = 0; x < SIZE; x++, pos_x += BLOCK_SIZE)
+    {
+        GLFix pos_y = 0;
+        for(int y = 0; y < SIZE; y++, pos_y += BLOCK_SIZE)
+        {
+            GLFix pos_z = 0;
+            for(int z = 0; z < SIZE; z++, pos_z += BLOCK_SIZE)
+            {
+                BLOCK_WDATA block = blocks[x][y][z];
+
+                if(getBLOCK(block) == BLOCK_AIR)
+                    continue;
+
+                if(global_block_renderer.isOpaque(getGlobalBlockRelative(x - 1, y, z))
+                    && global_block_renderer.isOpaque(getGlobalBlockRelative(x + 1, y, z))
+                    && global_block_renderer.isOpaque(getGlobalBlockRelative(x, y - 1, z))
+                    && global_block_renderer.isOpaque(getGlobalBlockRelative(x, y + 1, z))
+                    && global_block_renderer.isOpaque(getGlobalBlockRelative(x, y, z - 1))
+                    && global_block_renderer.isOpaque(getGlobalBlockRelative(x, y, z + 1)))
+                    continue;
+
+                global_block_renderer.renderSpecialBlock(block, pos_x, pos_y, pos_z, *this);
+            }
+        }
+    }
+
+    std::fill(sides_rendered[0][0] + 0, sides_rendered[SIZE - 1][SIZE - 1] + SIZE, 0);
+
+    positions_processed.resize(positions.size());
+
+    render_dirty = false;
+
+    debug("Done!\n");
+}
+
+// nglPerspective divides by the integer part of z. A culling corner at the
+// camera's own depth would divide by zero: ARM returns 0, x86 traps.
+static void cullPerspective(VECTOR3 *v)
+{
+    if(v->z.toInteger<int>() == 0)
+        v->z = GLFix(1);
+
+    nglPerspective(v);
+}
+
+static bool behindClip(const VECTOR3 &v1)
+{
+    return (transformation->data[2][0]*v1.x + transformation->data[2][1]*v1.y + transformation->data[2][2]*v1.z + transformation->data[2][3]) <= GLFix(CLIP_PLANE);
+}
+
+void Chunk::logic(bool ticks_enabled)
+{
+    if(ticks_enabled)
+    {
+        tick_counter -= 1;
+        if(tick_counter == 0)
+        {
+            tick_counter = 10; //Do a tick every 10th frame
+
+            for(int x = 0; x < SIZE; x++)
+                for(int y = 0; y < SIZE; y++)
+                    for(int z = 0; z < SIZE; z++)
+                    {
+                        BLOCK_WDATA block = blocks[x][y][z];
+                        if(block != BLOCK_AIR)
+                            global_block_renderer.tick(block, x, y, z, *this);
+                    }
+        }
+    }
+
+    for(int i = particles.size() - 1; i >= 0; --i)
+    {
+        bool remove = false;
+        particles[i].logic(&remove);
+        if(remove)
+            particles.erase(particles.begin() + i);
+    }
+}
+
+void Chunk::render()
+{
+    if(__builtin_expect(render_dirty, 0))
+        buildGeometry();
+
+    //If there's nothing to render, skip it completely
+    if(positions.size() == 0 && vertices_unaligned.size() == 0
+            && animations.size() == 0 && particles.size() == 0)
+        return;
+
+    glPushMatrix();
+    glTranslatef(abs_x, abs_y, abs_z);
+
+    //Basic culling
+    VECTOR3 v1{0,                            0,                            0},
+            v2{0 + Chunk::SIZE * BLOCK_SIZE, 0,                            0},
+            v3{0,                            0 + Chunk::SIZE * BLOCK_SIZE, 0},
+            v4{0 + Chunk::SIZE * BLOCK_SIZE, 0 + Chunk::SIZE * BLOCK_SIZE, 0},
+            v5{0,                            0,                            0 + Chunk::SIZE * BLOCK_SIZE},
+            v6{0 + Chunk::SIZE * BLOCK_SIZE, 0,                            0 + Chunk::SIZE * BLOCK_SIZE},
+            v7{0,                            0 + Chunk::SIZE * BLOCK_SIZE, 0 + Chunk::SIZE * BLOCK_SIZE},
+            v8{0 + Chunk::SIZE * BLOCK_SIZE, 0 + Chunk::SIZE * BLOCK_SIZE, 0 + Chunk::SIZE * BLOCK_SIZE};
+
+    //Z-Culling (now, it's a bit cheaper than a full MultMatVectRes)
+    if(behindClip(v1) && behindClip(v2) && behindClip(v3) && behindClip(v4) && behindClip(v5) && behindClip(v6) && behindClip(v7) && behindClip(v8))
+        return glPopMatrix();
+
+    VECTOR3 v9, v10, v11, v12, v13, v14, v15, v16;
+
+    nglMultMatVectRes(transformation, &v1, &v9);
+    nglMultMatVectRes(transformation, &v2, &v10);
+    nglMultMatVectRes(transformation, &v3, &v11);
+    nglMultMatVectRes(transformation, &v4, &v12);
+    nglMultMatVectRes(transformation, &v5, &v13);
+    nglMultMatVectRes(transformation, &v6, &v14);
+    nglMultMatVectRes(transformation, &v7, &v15);
+    nglMultMatVectRes(transformation, &v8, &v16);
+
+    cullPerspective(&v9);
+    cullPerspective(&v10);
+    cullPerspective(&v11);
+    cullPerspective(&v12);
+    cullPerspective(&v13);
+    cullPerspective(&v14);
+    cullPerspective(&v15);
+    cullPerspective(&v16);
+
+    //X and Y-Culling
+
+    if(v9.x < GLFix(0) && v10.x < GLFix(0) && v11.x < GLFix(0) && v12.x < GLFix(0) && v13.x < GLFix(0) && v14.x < GLFix(0) && v15.x < GLFix(0) && v16.x < GLFix(0))
+        return glPopMatrix();
+
+    if(v9.y < GLFix(0) && v10.y < GLFix(0) && v11.y < GLFix(0) && v12.y < GLFix(0) && v13.y < GLFix(0) && v14.y < GLFix(0) && v15.y < GLFix(0) && v16.y < GLFix(0))
+        return glPopMatrix();
+
+    if(v9.x >= SCREEN_WIDTH && v10.x >= SCREEN_WIDTH && v11.x >= SCREEN_WIDTH && v12.x >= SCREEN_WIDTH
+            && v13.x >= SCREEN_WIDTH && v14.x >= SCREEN_WIDTH && v15.x >= SCREEN_WIDTH && v16.x >= SCREEN_WIDTH)
+        return glPopMatrix();
+
+    if(v9.y >= SCREEN_HEIGHT && v10.y >= SCREEN_HEIGHT && v11.y >= SCREEN_HEIGHT && v12.y >= SCREEN_HEIGHT
+            && v13.y >= SCREEN_HEIGHT && v14.y >= SCREEN_HEIGHT && v15.y >= SCREEN_HEIGHT && v16.y >= SCREEN_HEIGHT)
+        return glPopMatrix();
+
+    glBindTexture(nullptr);
+    nglDrawArray(vertices_color.data(), vertices_color.size(), positions.data(), positions.size(), positions_processed.data(), GL_QUADS, true);
+
+    glBindTexture(terrainQuadAtLevel(brightness));
+    nglDrawArray(vertices_quad.data(), vertices_quad.size(), positions.data(), positions.size(), positions_processed.data(), GL_QUADS, false);
+
+    glBindTexture(terrainAtLevel(brightness));
+    nglDrawArray(vertices.data(), vertices.size(), positions.data(), positions.size(), positions_processed.data(), GL_QUADS, false);
+
+    const VERTEX *ve = vertices_unaligned.data();
+    for(unsigned int i = 0; i < vertices_unaligned.size(); i += 4, ve += 4)
+    {
+        VERTEX v1, v2, v3, v4;
+
+        nglMultMatVectRes(transformation, &ve[0], &v1);
+        nglMultMatVectRes(transformation, &ve[1], &v2);
+        nglMultMatVectRes(transformation, &ve[2], &v3);
+
+        //nglMultMatVectRes doesn't copy u,v and c
+        v1.u = ve[0].u;
+        v1.v = ve[0].v;
+        v1.c = ve[0].c;
+        v2.u = ve[1].u;
+        v2.v = ve[1].v;
+        v2.c = ve[1].c;
+        v3.u = ve[2].u;
+        v3.v = ve[2].v;
+        v3.c = ve[2].c;
+
+        if(nglDrawTriangle(&v1, &v2, &v3, (v1.c & TEXTURE_DRAW_BACKFACE) == 0) || (v1.c & INDEPENDENT_TRIS))
+        {
+            nglMultMatVectRes(transformation, &ve[3], &v4);
+            v4.u = ve[3].u;
+            v4.v = ve[3].v;
+            v4.c = ve[3].c;
+
+            nglDrawTriangle(&v3, &v4, &v1, v1.c & INDEPENDENT_TRIS);
+        }
+    }
+
+    for(auto &animation : animations)
+        animation.animate(animation.x, animation.y, animation.z, *this);
+
+    for(auto &particle : particles)
+        particle.render();
+
+    return glPopMatrix();
+}
+
+BLOCK_WDATA Chunk::getLocalBlock(const int x, const int y, const int z) const
+{
+    assert(inBounds(x, y, z));
+    return blocks[x][y][z];
+}
+
+void Chunk::setLocalBlock(const int x, const int y, const int z, const BLOCK_WDATA block, bool set_dirty)
+{
+    assert(inBounds(x, y, z));
+    blocks[x][y][z] = block;
+    if(!set_dirty)
+        return;
+
+    setDirty();
+
+    if(x == 0)
+        if(Chunk *c = world.findChunk(this->x - 1, this->y, this->z))
+            c->setDirty();
+
+    if(x == Chunk::SIZE - 1)
+        if(Chunk *c = world.findChunk(this->x + 1, this->y, this->z))
+            c->setDirty();
+
+    if(y == 0)
+        if(Chunk *c = world.findChunk(this->x, this->y - 1, this->z))
+            c->setDirty();
+
+    if(y == Chunk::SIZE - 1)
+        if(Chunk *c = world.findChunk(this->x, this->y + 1, this->z))
+            c->setDirty();
+
+    if(z == 0)
+        if(Chunk *c = world.findChunk(this->x, this->y, this->z - 1))
+            c->setDirty();
+
+    if(z == Chunk::SIZE - 1)
+        if(Chunk *c = world.findChunk(this->x, this->y, this->z + 1))
+            c->setDirty();
+}
+
+void Chunk::changeLocalBlock(const int x, const int y, const int z, const BLOCK_WDATA block)
+{
+    BLOCK_WDATA current_block = blocks[x][y][z];
+    setLocalBlock(x, y, z, block);
+    global_block_renderer.removedBlock(current_block, x, y, z, *this);
+    global_block_renderer.addedBlock(block, x, y, z, *this);
+}
+
+void Chunk::changeGlobalBlockRelative(const int x, const int y, const int z, const BLOCK_WDATA block)
+{
+    if(inBounds(x, y, z))
+        return changeLocalBlock(x, y, z, block);
+
+    world.changeBlock(x + this->x*SIZE, y + this->y*SIZE, z + this->z*SIZE, block);
+}
+
+BLOCK_WDATA Chunk::getGlobalBlockRelative(const int x, const int y, const int z) const
+{
+    if(inBounds(x, y, z))
+        return getLocalBlock(x, y, z);
+
+    return world.getBlock(x + this->x*SIZE, y + this->y*SIZE, z + this->z*SIZE);
+}
+
+void Chunk::setGlobalBlockRelative(const int x, const int y, const int z, const BLOCK_WDATA block, bool set_dirty)
+{
+    if(inBounds(x, y, z))
+        return setLocalBlock(x, y, z, block, set_dirty);
+
+    return world.setBlock(x + this->x*SIZE, y + this->y*SIZE, z + this->z*SIZE, block, set_dirty);
+}
+
+//Ignores any non-obstacle blocks
+// Local block index range [lo, hi] along one axis that a box from 'low' to
+// 'high' can touch, with a one-block margin so touching edges and block
+// shapes that spill slightly past their cell are still checked exactly as
+// before. Returns false if the range misses the chunk.
+static bool blockRange(GLFix low, GLFix high, GLFix chunk_origin, int &lo, int &hi)
+{
+    // floor() rounds towards minus infinity; >> 7 divides by BLOCK_SIZE (128) the same way.
+    static_assert(BLOCK_SIZE == 128, "Update the shift accordingly!");
+    lo = ((low - chunk_origin).floor() >> 7) - 1;
+    hi = ((high - chunk_origin).floor() >> 7) + 1;
+    if(lo < 0) lo = 0;
+    if(hi > Chunk::SIZE - 1) hi = Chunk::SIZE - 1;
+    return lo <= hi;
+}
+
+bool Chunk::intersects(AABB &other)
+{
+    if(!aabb.intersects(other))
+        return false;
+
+    // Only the blocks the box can reach, instead of all SIZE^3: entities call
+    // this several times per tick, so scanning the whole chunk was the main
+    // cost of having many of them.
+    int x0, x1, y0, y1, z0, z1;
+    if(!blockRange(other.low_x, other.high_x, abs_x, x0, x1)
+       || !blockRange(other.low_y, other.high_y, abs_y, y0, y1)
+       || !blockRange(other.low_z, other.high_z, abs_z, z0, z1))
+        return false;
+
+    AABB aabb;
+    aabb.low_x = abs_x + x0 * BLOCK_SIZE;
+
+    for(int x = x0; x <= x1; x++, aabb.low_x += BLOCK_SIZE)
+    {
+        aabb.high_x = aabb.low_x + BLOCK_SIZE;
+
+        aabb.low_y = abs_y + y0 * BLOCK_SIZE;
+
+        for(int y = y0; y <= y1; y++, aabb.low_y += BLOCK_SIZE)
+        {
+            aabb.high_y = aabb.low_y + BLOCK_SIZE;
+
+            aabb.low_z = abs_z + z0 * BLOCK_SIZE;
+
+            for(int z = z0; z <= z1; z++, aabb.low_z += BLOCK_SIZE)
+            {
+                aabb.high_z = aabb.low_z + BLOCK_SIZE;
+
+                const BLOCK_WDATA block = blocks[x][y][z];
+
+                if(!global_block_renderer.isObstacle(block))
+                    continue;
+
+                if(global_block_renderer.isBlockShaped(block))
+                {
+                    if(aabb.intersects(other))
+                        return true;
+                }
+                else if(global_block_renderer.getAABB(block, aabb.low_x, aabb.low_y, aabb.low_z).intersects(other))
+                    return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+bool Chunk::intersectsRay(GLFix rx, GLFix ry, GLFix rz, GLFix dx, GLFix dy, GLFix dz, GLFix &dist, VECTOR3 &pos, AABB::SIDE &side, bool hit_water_sources)
+{
+    GLFix shortest_dist;
+    if(aabb.intersectsRay(rx, ry, rz, dx, dy, dz, shortest_dist) == AABB::NONE)
+        return false;
+
+    shortest_dist = GLFix::maxValue();
+
+    AABB aabb;
+    aabb.low_x = abs_x;
+
+    for(unsigned int x = 0; x < SIZE; x++, aabb.low_x += BLOCK_SIZE)
+    {
+        aabb.high_x = aabb.low_x + BLOCK_SIZE;
+
+        aabb.low_y = abs_y;
+
+        for(unsigned int y = 0; y < SIZE; y++, aabb.low_y += BLOCK_SIZE)
+        {
+            aabb.high_y = aabb.low_y + BLOCK_SIZE;
+
+            aabb.low_z = abs_z;
+
+            for(unsigned int z = 0; z < SIZE; z++, aabb.low_z += BLOCK_SIZE)
+            {
+                aabb.high_z = aabb.low_z + BLOCK_SIZE;
+
+                BLOCK_WDATA block = blocks[x][y][z];
+
+                if(block == BLOCK_AIR || (isFluid(block) && !(hit_water_sources && isWaterSource(block))))
+                    continue;
+
+                AABB test = aabb;
+                if(!global_block_renderer.isBlockShaped(block))
+                    test = global_block_renderer.getAABB(block, aabb.low_x, aabb.low_y, aabb.low_z);
+
+                GLFix new_dist;
+                AABB::SIDE new_side = test.intersectsRay(rx, ry, rz, dx, dy, dz, new_dist);
+                if(new_side != AABB::NONE)
+                {
+                    if(new_dist < shortest_dist)
+                    {
+                        pos.x = x;
+                        pos.y = y;
+                        pos.z = z;
+                        side = new_side;
+                        shortest_dist = new_dist;
+                    }
+                }
+            }
+        }
+    }
+
+    if(shortest_dist == GLFix::maxValue())
+        return false;
+
+    dist = shortest_dist;
+    return true;
+}
+
+// Crafti 1.3's ore pillars: below the surface layers a column is either all
+// stone or, where its noise is low, all one ore.
+static BLOCK deepBlock(const PerlinNoise &noise, int local_x, int local_z, int chunk_x, int chunk_z)
+{
+    GLFix noise_val = noise.noise(GLFix(local_x)/Chunk::SIZE + chunk_x, GLFix(local_z)/Chunk::SIZE + chunk_z, 10.5f);
+    if(noise_val >= GLFix(0.2f))
+        return BLOCK_STONE;
+
+    noise_val = noise.noise(GLFix(local_x)/Chunk::SIZE + chunk_x, GLFix(local_z)/Chunk::SIZE + chunk_z, 1000.5f);
+    const uint8_t test = (noise_val.value>>4) & 0xF;
+    if(test < 1)
+        return BLOCK_DIAMOND_ORE;
+    if(test < 2)
+        return BLOCK_REDSTONE_ORE;
+    if(test < 5)
+        return BLOCK_IRON_ORE;
+    return BLOCK_COAL_ORE;
+}
+
+// Salts for the per-column decoration rolls.
+enum : uint32_t { SALT_TREE = 0x7EE5, SALT_TREE_KIND = 0x4B1D, SALT_TREE_SHAPE = 0x5A4E, SALT_FLOWER = 0xF10E, SALT_CACTUS = 0xCAC7, SALT_BUSH = 0xB054 };
+
+void Chunk::generate()
+{
+    //Everything air
+    std::fill(blocks[0][0] + 0, blocks[SIZE - 1][SIZE - 1] + SIZE, BLOCK_AIR);
+
+    debug("Generating chunk %d:%d:%d...\t", x, y, z);
+
+    const PerlinNoise &noise = world.noiseGenerator();
+    const uint32_t seed = world.worldSeed();
+    const int base_x = this->x * SIZE, base_y = this->y * SIZE, base_z = this->z * SIZE;
+
+    // Ground heights of this chunk's columns and the ring around them, for steepness.
+    int heights[SIZE + 2][SIZE + 2];
+    for(int x = -1; x <= SIZE; x++)
+        for(int z = -1; z <= SIZE; z++)
+            heights[x + 1][z + 1] = groundHeight(noise, base_x + x, base_z + z);
+
+    Biome biomes[SIZE][SIZE];
+
+    for(int x = 0; x < SIZE; x++)
+        for(int z = 0; z < SIZE; z++)
+        {
+            const int height = heights[x + 1][z + 1];
+
+            // The biome only matters where its surface layers (at most 8 deep)
+            // or its water reach into this chunk.
+            const bool surface_here = height - 8 < base_y + SIZE && std::max(height, SEA_LEVEL) > base_y;
+            const Biome biome = biomes[x][z] = surface_here ? biomeAt(noise, base_x + x, base_z + z) : Biome::PLAINS;
+
+            int steepness = 0;
+            for(const int h : { heights[x][z + 1], heights[x + 2][z + 1], heights[x + 1][z], heights[x + 1][z + 2] })
+                steepness = std::max(steepness, std::abs(h - height));
+
+            // Seabeds and beaches are sand whatever the biome.
+            const Surface surface = isSandColumn(height) && biome != Biome::DESERT
+                    ? Surface{ BLOCK_SAND, BLOCK_SAND, 4, 0, 0 } : surfaceFor(biome, height, steepness);
+
+            const int height_left = height - base_y;
+            const int height_here = std::min(height_left, Chunk::SIZE);
+
+            int y = 0;
+
+            //Bottom layer of lowest chunk is bedrock
+            if(this->y == 0)
+                blocks[x][y++][z] = BLOCK_BEDROCK;
+
+            for(; y < height_here; y++)
+            {
+                const int depth = height_left - y;   // 1 is the top block
+                if(depth == 1)
+                    blocks[x][y][z] = surface.top;
+                else if(depth <= 1 + surface.filler_depth)
+                    blocks[x][y][z] = surface.filler;
+                else if(depth <= 1 + surface.filler_depth + surface.under_depth)
+                    blocks[x][y][z] = surface.under;
+                else
+                    blocks[x][y][z] = deepBlock(noise, x, z, this->x, this->z);
+            }
+
+            // Oceans and lakes: still water from the ground up to sea level,
+            // frozen over in the cold.
+            fillSeaColumn(blocks, x, z, this->y, height, biomeFeatures(biome).frozen_water);
+        }
+
+    // Gold, emerald and Ancient Debris (new chunks only: loaded ones skip generate()).
+    generateOres(blocks, this->x, this->y, this->z, seed);
+
+    // Trees, flowers, cacti and dead bushes, on columns whose ground is in this chunk.
+    int trunks = 0, trunk_x[SIZE * SIZE], trunk_z[SIZE * SIZE];
+    for(int x = 0; x < SIZE; x++)
+        for(int z = 0; z < SIZE; z++)
+        {
+            const int height = heights[x + 1][z + 1];
+            const int ground = height - base_y - 1;    // local y of the top block
+            if(ground < 0 || ground >= SIZE || !isDryLand(height))
+                continue;
+
+            const int gx = base_x + x, gz = base_z + z;
+            const BiomeFeatures &f = biomeFeatures(biomes[x][z]);
+            const BLOCK top = getBLOCK(blocks[x][ground][z]);
+            const bool soil = top == BLOCK_GRASS || top == BLOCK_SNOWY_GRASS || top == BLOCK_DIRT;
+
+            if(soil && columnHash(gx, gz, seed, SALT_TREE) % 1000 < f.trees)
+            {
+                // Two blocks between trunks at least, so crowns don't merge into one.
+                bool crowded = false;
+                for(int i = 0; i < trunks && !crowded; ++i)
+                    crowded = std::abs(trunk_x[i] - x) <= 2 && std::abs(trunk_z[i] - z) <= 2;
+
+                if(!crowded)
+                {
+                    const uint32_t roll = columnHash(gx, gz, seed, SALT_TREE_KIND) % 1000;
+                    const TreeKind kind = roll < f.spruce ? TreeKind::SPRUCE : roll < f.spruce + f.birch ? TreeKind::BIRCH : TreeKind::OAK;
+                    if(placeTree(kind, x, ground + 1, z, columnHash(gx, gz, seed, SALT_TREE_SHAPE)))
+                    {
+                        trunk_x[trunks] = x;
+                        trunk_z[trunks++] = z;
+                        continue;
+                    }
+                }
+            }
+
+            if(top == BLOCK_GRASS && columnHash(gx, gz, seed, SALT_FLOWER) % 1000 < f.flowers)
+                setGlobalBlockRelative(x, ground + 1, z, getBLOCKWDATA(BLOCK_FLOWER, columnHash(gx, gz, seed, SALT_FLOWER + 1) & 1));
+            else if(top == BLOCK_SAND && columnHash(gx, gz, seed, SALT_CACTUS) % 1000 < f.cacti)
+            {
+                // Cacti stand alone: nothing beside them at any height.
+                bool open = true;
+                for(const int h : { heights[x][z + 1], heights[x + 2][z + 1], heights[x + 1][z], heights[x + 1][z + 2] })
+                    open = open && h <= height;
+                const int tall = 1 + static_cast<int>(columnHash(gx, gz, seed, SALT_CACTUS + 1) % 3);
+                for(int i = 0; open && i < tall; ++i)
+                    setGlobalBlockRelative(x, ground + 1 + i, z, BLOCK_CACTUS);
+            }
+            else if(top == BLOCK_SAND && columnHash(gx, gz, seed, SALT_BUSH) % 1000 < f.dead_bushes)
+                setGlobalBlockRelative(x, ground + 1, z, getBLOCKWDATA(BLOCK_FLOWER, FLOWER_DEAD_BUSH));
+        }
+
+    debug("Done!\n");
+}
+
+bool Chunk::saveToFile(gzFile file)
+{
+    if(gzfwrite(blocks, sizeof(***blocks), SIZE*SIZE*SIZE, file) == SIZE*SIZE*SIZE)
+    {
+        debug("Saved chunk %d:%d:%d successfully.\n", x, y, z);
+        return true;
+    }
+    else
+    {
+        debug("Saving chunk %d:%d:%d failed!\n", x, y, z);
+        return false;
+    }
+}
+
+bool Chunk::loadFromFile(gzFile file)
+{
+    if(gzfread(blocks, sizeof(***blocks), SIZE*SIZE*SIZE, file) == SIZE*SIZE*SIZE)
+    {
+        debug("Loaded chunk %d:%d:%d successfully.\n", x, y, z);
+        return true;
+    }
+    else
+    {
+        debug("Loading chunk %d:%d:%d failed!\n", x, y, z);
+        return false;
+    }
+}
+
+bool Chunk::gettingPowerFrom(const int x, const int y, const int z, BLOCK_SIDE side, bool ignore_redstone_wire)
+{
+    auto gettingStrongPowerFrom = [this, ignore_redstone_wire](const int x, const int y, const int z, BLOCK_SIDE side) {
+        BLOCK_WDATA block = getGlobalBlockRelative(x, y, z);
+        if(getBLOCK(block) == BLOCK_AIR || (ignore_redstone_wire && getBLOCK(block) == BLOCK_REDSTONE_WIRE))
+            return false;
+
+        return global_block_renderer.powersSide(block, side) == PowerState::StronglyPowered;
+    };
+
+    BLOCK_WDATA block = getGlobalBlockRelative(x, y, z);
+    if(getBLOCK(block) == BLOCK_AIR || (ignore_redstone_wire && getBLOCK(block) == BLOCK_REDSTONE_WIRE))
+        return false;
+
+    if(global_block_renderer.powersSide(block, side) != PowerState::NotPowered)
+        return true;
+
+    if(!global_block_renderer.isOpaque(block))
+        return false;
+
+    return gettingStrongPowerFrom(x-1, y, z, BLOCK_RIGHT)
+        || gettingStrongPowerFrom(x+1, y, z, BLOCK_LEFT)
+        || gettingStrongPowerFrom(x, y-1, z, BLOCK_TOP)
+        || gettingStrongPowerFrom(x, y+1, z, BLOCK_BOTTOM)
+        || gettingStrongPowerFrom(x, y, z-1, BLOCK_BACK)
+        || gettingStrongPowerFrom(x, y, z+1, BLOCK_FRONT);
+}
+
+bool Chunk::isBlockPowered(const int x, const int y, const int z, bool ignore_redstone_wire)
+{
+    return gettingPowerFrom(x-1, y, z, BLOCK_RIGHT, ignore_redstone_wire)
+        || gettingPowerFrom(x+1, y, z, BLOCK_LEFT, ignore_redstone_wire)
+        || gettingPowerFrom(x, y-1, z, BLOCK_TOP, ignore_redstone_wire)
+        || gettingPowerFrom(x, y+1, z, BLOCK_BOTTOM, ignore_redstone_wire)
+        || gettingPowerFrom(x, y, z-1, BLOCK_BACK, ignore_redstone_wire)
+        || gettingPowerFrom(x, y, z+1, BLOCK_FRONT, ignore_redstone_wire);
+}
+
+void Chunk::growTree(int local_x, int local_y, int local_z)
+{
+    // A tree that wouldn't fit under the sky stays a sapling and tries again.
+    const TreeKind kind = static_cast<TreeKind>(getBLOCKDATA(getGlobalBlockRelative(local_x, local_y, local_z)) % TREE_KINDS);
+    placeTree(kind, local_x, local_y, local_z, static_cast<uint32_t>(rand()));
+}
+
+bool Chunk::placeTree(TreeKind kind, int x, int y, int z, uint32_t rnd)
+{
+    static TreeBlock shape[MAX_TREE_BLOCKS];
+    const int top = World::HEIGHT * SIZE;
+    const int n = treeShape(kind, rnd, top - (this->y * SIZE + y), shape);
+    if(n == 0)
+        return false;
+
+    for(int i = 0; i < n; ++i)
+    {
+        const TreeBlock &t = shape[i];
+        const int bx = x + t.dx, by = y + t.dy, bz = z + t.dz;
+
+        // Into this chunk or a loaded one only where there's room (logs may
+        // also replace leaves and the sapling); into chunks not made yet
+        // regardless, as the block waits there until the chunk is generated.
+        bool room = true;
+        if(inBounds(bx, by, bz) || world.isLoaded(bx + this->x * SIZE, by + this->y * SIZE, bz + this->z * SIZE))
+        {
+            const BLOCK here = getBLOCK(getGlobalBlockRelative(bx, by, bz));
+            const bool is_log = t.block == logFor(kind);
+            room = here == BLOCK_AIR
+                    || (is_log && (here == BLOCK_SAPLING || here == BLOCK_LEAVES || here == BLOCK_SPRUCE_LEAVES || here == BLOCK_BIRCH_LEAVES));
+        }
+        if(room)
+            setGlobalBlockRelative(bx, by, bz, t.block);
+    }
+    return true;
+}
+
+void Chunk::spawnDestructionParticles(const int x, const int y, const int z)
+{
+    const auto block = getLocalBlock(x, y, z);
+    Particle p;
+    p.size = 14;
+    p.tae = global_block_renderer.materialTexture(block).current;
+
+    // Use the center quarter of the texture
+    const int tex_width = p.tae.right - p.tae.left,
+              tex_height = p.tae.bottom - p.tae.top;
+    p.tae.left += tex_width / 4;
+    p.tae.right -= tex_width / 4;
+    p.tae.top += tex_height / 4;
+    p.tae.bottom -= tex_height / 4;
+
+    // Random value between 0 and max (inclusive)
+    const auto randMax = [](GLFix max) { return max * (rand() & 0xFF) / 0xFF; };
+
+    // Get the center of the block contents (chunk relative coordinates)
+    const auto aabb = global_block_renderer.getAABB(block, x * BLOCK_SIZE, y * BLOCK_SIZE, z * BLOCK_SIZE);
+    const auto center = VECTOR3{(aabb.low_x + aabb.high_x) / 2, (aabb.low_y + aabb.high_y) / 2, (aabb.low_z + aabb.high_z) / 2};
+
+    // Spawn four particles at the center with random velocity and offset
+    for(int i = 0; i < 4; ++i)
+    {
+        p.vel = {randMax(10) - 5, randMax(5), randMax(10) - 5};
+        p.pos = center;
+        p.pos.x += randMax(100) - 50;
+        p.pos.y += randMax(100) - 50;
+        p.pos.z += randMax(100) - 50;
+        addParticle(p);
+    }
+}
+
+void drawLoadingtext(const int i)
+{
+    static int count = 0;
+    static bool shown = false;
+
+    if(i == -1)
+    {
+        count = 0;
+        shown = false;
+        return;
+    }
+
+    if(shown == true)
+        return;
+
+    count += 1;
+    if(count < i)
+        return;
+
+    shown = true;
+
+    if(lcd_type() != SCR_320x240_565 && lcd_type() != SCR_320x240_4)
+        return;
+    #ifdef _TINSPIRE
+        TEXTURE screen;
+        screen.width = SCREEN_WIDTH;
+        screen.height = SCREEN_HEIGHT;
+        screen.bitmap = reinterpret_cast<COLOR*>(REAL_SCREEN_BASE_ADDRESS);
+        drawTexture(loadingtext, screen, 0, 0, loadingtext.width, loadingtext.height, (SCREEN_WIDTH - loadingtext.width) / 2, 0, loadingtext.width, loadingtext.height);
+    #endif
+}
