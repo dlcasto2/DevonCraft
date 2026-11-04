@@ -1,38 +1,62 @@
-name: Calculator build
+name: DevonCraft calculator build
 
 on:
   push:
-    paths:
-      - '**/*.cpp'
-      - '**/*.h'
-      - '**/Makefile'
-      - '.github/workflows/calc.yml'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out DevonCraft
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-          path: crafti
+          path: devoncraft
 
-      - uses: actions/checkout@v4
+      - name: Check out Ndless SDK
+        uses: actions/checkout@v4
         with:
           repository: ndless-nspire/Ndless
           ref: r2020
           submodules: recursive
-          fetch-depth: 1          # full history not needed for a pinned ref
+          fetch-depth: 0
           path: ndless
 
-      - run: sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev libboost-program-options-dev zlib1g-dev
-        # python3-dev intentionally omitted — we skip GDB python support below
+      - name: Install toolchain build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev libboost-program-options-dev
 
-      - uses: actions/cache@v4
-        id: toolchain
+      # Build the toolchain directly. This intentionally avoids the cache action,
+      # which was failing before the build because its required `key` input was
+      # not being received by the workflow runner.
+      - name: Build Ndless toolchain
+        working-directory: ndless/ndless-sdk/toolchain
+        run: ./build_toolchain.sh
+
+      - name: Add Ndless tools to PATH
+        run: |
+          echo "$GITHUB_WORKSPACE/ndless/ndless-sdk/toolchain/install/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ndless/ndless-sdk/bin" >> "$GITHUB_PATH"
+
+      - name: Build Ndless SDK
+        working-directory: ndless
+        run: make -j"$(nproc)"
+
+      - name: Build DevonCraft release
+        working-directory: devoncraft
+        run: make -j"$(nproc)"
+
+      - name: Build DevonCraft stress-test variant
+        working-directory: devoncraft
+        run: |
+          make clean-objs
+          make STRESS=1 -j"$(nproc)"
+
+      - name: Upload calculator executables
+        uses: actions/upload-artifact@v4
         with:
+          name: devoncraft-calculator
           path: |
-            ndless/ndless-sdk/toolchain/install
-            ndless/ndless-sdk/toolchain/.built_binutils
-            ndless/ndless-sdk/toolchain/.built_gcc_step1
+            devoncraft/devoncraft.tns
+            devoncraft/devoncraft-stress.tns
+          if-no-files-found: error
