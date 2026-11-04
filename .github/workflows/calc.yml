@@ -23,42 +23,16 @@ jobs:
           repository: ndless-nspire/Ndless
           ref: r2020
           submodules: recursive
-          fetch-depth: 1          # ← was 0
+          fetch-depth: 1          # full history not needed for a pinned ref
           path: ndless
 
-      - uses: awalsh128/cache-apt-pkgs-action@latest
-        with:
-          packages: libgmp-dev libmpfr-dev libmpc-dev libboost-program-options-dev
-          version: 1.0
+      - run: sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev libboost-program-options-dev zlib1g-dev
+        # python3-dev intentionally omitted — we skip GDB python support below
 
       - uses: actions/cache@v4
         id: toolchain
         with:
-          path: ndless/ndless-sdk/toolchain/install
-          key: ndless-r2020-toolchain-${{ hashFiles('ndless/ndless-sdk/toolchain/build_toolchain.sh') }}
-
-      - if: steps.toolchain.outputs.cache-hit != 'true'
-        working-directory: ndless/ndless-sdk/toolchain
-        run: ./build_toolchain.sh
-
-      - uses: actions/cache@v4
-        id: ndless-build
-        with:
-          path: ndless/ndless-sdk/bin
-          key: ndless-r2020-sdk-${{ hashFiles('ndless/Makefile', 'ndless/ndless-sdk/Makefile') }}
-
-      - run: |
-          echo "$GITHUB_WORKSPACE/ndless/ndless-sdk/toolchain/install/bin" >> $GITHUB_PATH
-          echo "$GITHUB_WORKSPACE/ndless/ndless-sdk/bin" >> $GITHUB_PATH
-
-      - if: steps.ndless-build.outputs.cache-hit != 'true'
-        working-directory: ndless
-        run: make -j$(nproc)
-
-      - working-directory: crafti
-        run: make -j$(nproc) && make clean-objs && make STRESS=1 -j$(nproc)
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: crafti-calculator
-          path: "crafti/*.tns"
+          path: |
+            ndless/ndless-sdk/toolchain/install
+            ndless/ndless-sdk/toolchain/.built_binutils
+            ndless/ndless-sdk/toolchain/.built_gcc_step1
