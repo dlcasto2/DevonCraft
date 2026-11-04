@@ -1,0 +1,379 @@
+#include "terrain.h"
+
+#include <initializer_list>
+#include <libndls.h>
+
+#include "textures/terrain.h"
+#include "textures/inv_selection.h"
+#include "block_art.h"
+
+const char *block_names[BLOCK_NORMAL_LAST + 1] =
+{
+    "Air",
+    "Stone",
+    "Dirt",
+    "Sand",
+    "Wood",
+    "Leaves",
+    "Normal Planks",
+    "Wall",
+    "Coal Ore",
+    "Gold Ore",
+    "Iron Ore",
+    "Diamond Ore",
+    "Redstone Ore",
+    "TNT",
+    "Sponge",
+    "Dark Planks",
+    "Bright Planks",
+    "Furnace",
+    "Crafting Table",
+    "Bookshelf",
+    "Grass",
+    "Pumpkin",
+    "Bedrock",
+    "Glass",
+    "Cobblestone",
+    "Glowstone",
+    "Iron block",
+    "Gold block",
+    "Diamond block",
+    "Netherrack",
+    "Wool",
+    "Emerald Ore",
+    "Block of Emerald",
+    "Ancient Debris",
+    "Smithing Table",
+    "Chest",
+    "Obsidian",
+    "Sandstone",
+    "Snowy Grass",
+    "Snow",
+    "Ice",
+    "Cactus",
+    "Spruce Wood",
+    "Birch Wood",
+    "Spruce Leaves",
+    "Birch Leaves"
+};
+
+struct BLOCK_TEXTURE {
+    BLOCK block;
+    BLOCK_SIDE_BITFIELD sides;
+};
+
+#define NON {BLOCK_AIR, 0}
+#define ALL(block) {block, BLOCK_TOP_BIT | BLOCK_BOTTOM_BIT | BLOCK_LEFT_BIT | BLOCK_RIGHT_BIT | BLOCK_FRONT_BIT | BLOCK_BACK_BIT}
+#define TOP(block) {block, BLOCK_TOP_BIT}
+#define BOT(block) {block, BLOCK_BOTTOM_BIT}
+#define LEF(block) {block, BLOCK_LEFT_BIT}
+#define RIG(block) {block, BLOCK_RIGHT_BIT}
+#define FRO(block) {block, BLOCK_FRONT_BIT}
+#define BAC(block) {block, BLOCK_BACK_BIT}
+#define TAB(block) {block, BLOCK_TOP_BIT | BLOCK_BOTTOM_BIT}
+#define SID(block) {block, BLOCK_FRONT_BIT | BLOCK_BACK_BIT | BLOCK_LEFT_BIT | BLOCK_RIGHT_BIT}
+#define SWF(block) {block, BLOCK_BACK_BIT | BLOCK_LEFT_BIT | BLOCK_RIGHT_BIT}
+#define AWF(block) {block, BLOCK_TOP_BIT | BLOCK_BOTTOM_BIT | BLOCK_LEFT_BIT | BLOCK_RIGHT_BIT | BLOCK_BACK_BIT}
+
+//Maps location in texture atlas to block ID
+static const BLOCK_TEXTURE texture_atlas[][16] =
+{
+    { TOP(BLOCK_GRASS), ALL(BLOCK_STONE), ALL(BLOCK_DIRT), SID(BLOCK_GRASS), ALL(BLOCK_PLANKS_NORMAL), NON, NON, ALL(BLOCK_WALL), ALL(BLOCK_TNT), TOP(BLOCK_TNT), BOT(BLOCK_TNT), NON, NON, NON, NON, NON },
+    { NON, ALL(BLOCK_BEDROCK), ALL(BLOCK_SAND), ALL(BLOCK_COBBLESTONE), SID(BLOCK_WOOD), TAB(BLOCK_WOOD), ALL(BLOCK_IRON), ALL(BLOCK_GOLD), ALL(BLOCK_DIAMOND), ALL(BLOCK_EMERALD_BLOCK), TAB(BLOCK_CHEST), SWF(BLOCK_CHEST), NON, NON, NON, NON },
+    { ALL(BLOCK_GOLD_ORE), ALL(BLOCK_IRON_ORE), ALL(BLOCK_COAL_ORE), FRO(BLOCK_BOOKSHELF), NON, ALL(BLOCK_OBSIDIAN), NON, NON, NON, FRO(BLOCK_CHEST), TAB(BLOCK_SMITHING_TABLE), TAB(BLOCK_CRAFTING_TABLE), FRO(BLOCK_FURNACE), SWF(BLOCK_FURNACE), NON, NON },
+    { ALL(BLOCK_SPONGE), ALL(BLOCK_GLASS), ALL(BLOCK_DIAMOND_ORE), ALL(BLOCK_REDSTONE_ORE), NON, ALL(BLOCK_LEAVES), NON, NON, NON, SID(BLOCK_SMITHING_TABLE), FRO(BLOCK_SMITHING_TABLE), SID(BLOCK_CRAFTING_TABLE), FRO(BLOCK_CRAFTING_TABLE), NON, TOP(BLOCK_FURNACE), NON },
+    { ALL(BLOCK_WOOL), NON, ALL(BLOCK_SNOW), ALL(BLOCK_ICE), SID(BLOCK_SNOWY_GRASS), TOP(BLOCK_CACTUS), SID(BLOCK_CACTUS), BOT(BLOCK_CACTUS), NON, NON, NON, ALL(BLOCK_BIRCH_LEAVES), NON, SID(BLOCK_ANCIENT_DEBRIS), TAB(BLOCK_ANCIENT_DEBRIS), NON }, // birch leaves and debris painted in terrainInit and block_art_paint.cpp
+    { NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON },
+    { NON, NON, NON, NON, NON, NON, TAB(BLOCK_PUMPKIN), ALL(BLOCK_NETHERRACK), NON, ALL(BLOCK_GLOWSTONE), NON, NON, NON, NON, NON, NON},
+    { NON, NON, NON, NON, SID(BLOCK_SPRUCE_LOG), SID(BLOCK_BIRCH_LOG), SWF(BLOCK_PUMPKIN), FRO(BLOCK_PUMPKIN), NON, NON, NON, NON, NON, NON, NON, NON },
+    { NON, NON, NON, NON, NON, ALL(BLOCK_SPRUCE_LEAVES), NON, NON, NON, NON, NON, NON, NON, NON, NON, NON },
+    { NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON },
+    { NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, ALL(BLOCK_EMERALD_ORE), NON, NON, NON, NON }, // emerald ore: (11,10) in the bundled pack
+    { TOP(BLOCK_SANDSTONE), NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON },
+    { SID(BLOCK_SANDSTONE), NON, NON, NON, NON, NON, ALL(BLOCK_PLANKS_DARK), AWF(BLOCK_BOOKSHELF), NON, NON, NON, NON, NON, NON, NON, NON },
+    { BOT(BLOCK_SANDSTONE), NON, NON, NON, NON, NON, ALL(BLOCK_PLANKS_BRIGHT), NON, NON, NON, NON, NON, NON, NON, NON, NON },
+    { NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON },
+    { NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON, NON }
+};
+
+static const struct { int x, y; } special_block_texture_idx[BLOCK_SPECIAL_LAST - BLOCK_SPECIAL_START + 1] =
+{
+    {4, 0}, // Torch -> Planks
+    {4, 3}, // Flower -> Leaves
+    {11, 0}, // Spiderweb -> Spiderweb
+    {9, 7}, // Cake -> Cake
+    {14, 8}, // Mushroom -> Mushroom block
+    {1, 6}, // Door -> Door bottom
+    {13, 12}, // Water -> Water
+    {13, 14}, // Lava -> Lava
+    {15, 5}, // Wheat -> Wheat
+    {15, 0}, // Sapling -> Oak sapling
+    {}, {}, {}, {}, {}, {}, {}, {}, {}, // Gap...
+    {3, 13}, // Redstone Lamp -> Lamp (off)
+    {1, 0}, // Redstone Switch -> Stone
+    {4, 10}, // Redstone Wire -> Redstone Wire
+    {4, 0}, // Redstone Torch -> Planks
+    {1, 0}, // Pressure Plate -> Stone
+    {7, 8}, // Bed -> Bed head (top)
+};
+
+TerrainAtlasEntry block_textures[BLOCK_NORMAL_LAST + 1][BLOCK_SIDE_LAST + 1];
+TerrainQuadEntry quad_block_textures[BLOCK_NORMAL_LAST + 1][BLOCK_SIDE_LAST + 1], dual_block_textures[2][BLOCK_NORMAL_LAST + 1][BLOCK_SIDE_LAST + 1];
+TerrainAtlasEntry terrain_atlas[16][16];
+TerrainAtlasEntry special_block_textures[BLOCK_SPECIAL_LAST - BLOCK_SPECIAL_START + 1];
+
+TEXTURE *terrain_current, *terrain_resized, *terrain_quad, *inv_selection_p, *door_preview;
+
+//Some textures have a different color in different biomes. We have to make them green. Grey grass just looks so unhealty
+static void makeColor(const RGB &color, TEXTURE &texture, const int x, const int y, const int w, const int h)
+{
+    for(int x1 = x; x1 < w + x; x1++)
+        for(int y1 = y; y1 < h + y; y1++)
+        {
+            RGB grey = rgbColor(texture.bitmap[x1 + y1*texture.width]);
+            grey.r *= color.r;
+            grey.g *= color.g;
+            grey.b *= color.b;
+            texture.bitmap[x1 + y1*texture.width] = colorRGB(grey);
+        }
+}
+
+// Copies one atlas cell over another, transparent pixels too (drawTexture skips them).
+static void copyCell(TEXTURE &texture, int from_x, int from_y, int to_x, int to_y, const int w, const int h)
+{
+    for(int y = 0; y < h; y++)
+        for(int x = 0; x < w; x++)
+            texture.bitmap[to_x * w + x + (to_y * h + y) * texture.width] = texture.bitmap[from_x * w + x + (from_y * h + y) * texture.width];
+}
+
+static void makeWaterOpaque(TEXTURE &texture, const int x, const int y, const int w, const int h)
+{
+    for(int x1 = x; x1 < w + x; x1++)
+        for(int y1 = y; y1 < h + y; y1++)
+        {
+            RGB color = rgbColor(texture.bitmap[x1 + y1*texture.width]);
+            // Taking the (non-remultiplied) color directly looks too bright
+            color.r = (color.r * 3) / 4;
+            color.g = (color.g * 3) / 4;
+            color.b = (color.b * 3) / 4;
+            texture.bitmap[x1 + y1*texture.width] = colorRGB(color);
+        }
+}
+
+void terrainInit(const char *texture_path)
+{
+    terrain_current = loadTextureFromFile(texture_path);
+    if(!terrain_current)
+        terrain_current = &terrain; //Use default, included texture
+    else
+        puts("External texture loaded!");
+
+    int fields_x = 16;
+    int fields_y = 16;
+    int field_width = terrain_current->width / fields_x;
+    int field_height = terrain_current->height / fields_y;
+
+    // Birch leaves are oak leaves in a paler green: copy the grey originals
+    // (fancy and fast) into the jukebox cells, which Crafti doesn't use.
+    copyCell(*terrain_current, OAK_LEAVES_FANCY_X, OAK_LEAVES_Y, BIRCH_LEAVES_FANCY_X, BIRCH_LEAVES_Y, field_width, field_height);
+    copyCell(*terrain_current, OAK_LEAVES_FANCY_X + 1, OAK_LEAVES_Y, BIRCH_LEAVES_FAST_X, BIRCH_LEAVES_Y, field_width, field_height);
+
+    //Give grass and leaves color
+    const RGB green = { 0.5f, 0.8f, 0.3f };
+    makeColor(green, *terrain_current, 0, 0, field_width, field_height);
+    makeColor(green, *terrain_current, 5 * field_width, 3 * field_height, field_width, field_height);
+    makeColor(green, *terrain_current, 4 * field_width, 3 * field_height, field_width, field_height);
+
+    // 1.8.8's birch and spruce foliage colours, brightened like the oak's above
+    const RGB birch = { 0.58f, 0.75f, 0.38f }, spruce = { 0.38f, 0.58f, 0.40f };
+    makeColor(birch, *terrain_current, BIRCH_LEAVES_FANCY_X * field_width, BIRCH_LEAVES_Y * field_height, field_width, field_height);
+    makeColor(birch, *terrain_current, BIRCH_LEAVES_FAST_X * field_width, BIRCH_LEAVES_Y * field_height, field_width, field_height);
+    makeColor(spruce, *terrain_current, 4 * field_width, 8 * field_height, field_width, field_height);
+    makeColor(spruce, *terrain_current, 5 * field_width, 8 * field_height, field_width, field_height);
+
+    //Also redstone
+    drawTexture(*terrain_current, *terrain_current, 4 * field_width, 10 * field_height, field_width, field_height, 4 * field_width, 11 * field_height, field_width, field_height);
+    drawTexture(*terrain_current, *terrain_current, 5 * field_width, 10 * field_height, field_width, field_height, 5 * field_width, 11 * field_height, field_width, field_height);
+    const RGB black = { 0.3f, 0.2f, 0.2f };
+    makeColor(black, *terrain_current, 4 * field_width, 10 * field_height, field_width, field_height);
+    makeColor(black, *terrain_current, 5 * field_width, 10 * field_height, field_width, field_height);
+    const RGB red = { 1.0f, 0.2f, 0.2f };
+    makeColor(red, *terrain_current, 4 * field_width, 11 * field_height, field_width, field_height);
+    makeColor(red, *terrain_current, 5 * field_width, 11 * field_height, field_width, field_height);
+
+    //And redstone switches
+    drawTexture(*terrain_current, *terrain_current, 0 * field_width, 6 * field_height, field_width, field_height, 10 * field_width, 15 * field_height, field_width, field_height);
+    const RGB red_tint = { 1.0f, 0.8f, 0.8f };
+    makeColor(red_tint, *terrain_current, 10 * field_width, 15 * field_height, field_width, field_height);
+
+    // Blocks added by Survival Edition, drawn into free cells of row 4.
+    paintAddedBlockTextures(*terrain_current, field_width, field_height);
+
+    // Water has opacity of 0.5 but it's not rendered with alpha here.
+    makeWaterOpaque(*terrain_current, 13 * field_width, 12 * field_height, field_width, field_height);
+
+    if(terrain_current->width == 384 && terrain_current->height == 384)
+        terrain_resized = terrain_current;
+    else
+        terrain_resized = resizeTexture(*terrain_current, 384, 384);
+
+    for(int y = 0; y < fields_y; y++)
+        for(int x = 0; x < fields_x; x++)
+        {
+            //+1 and -2 to work around GLFix inaccuracies resulting in rounding errors
+            TerrainAtlasEntry tea = terrain_atlas[x][y] = {textureArea(x * field_width + 1, y * field_height + 1, field_width - 2, field_height - 2),
+                                                            textureArea(x * 24, y * 24, 24, 24) };
+
+            BLOCK_TEXTURE bt = texture_atlas[y][x];
+            if(bt.sides == 0)
+                continue;
+
+            if(bt.sides & BLOCK_BOTTOM_BIT)
+                block_textures[bt.block][BLOCK_BOTTOM] = tea;
+            if(bt.sides & BLOCK_TOP_BIT)
+                block_textures[bt.block][BLOCK_TOP] = tea;
+            if(bt.sides & BLOCK_LEFT_BIT)
+                block_textures[bt.block][BLOCK_LEFT] = tea;
+            if(bt.sides & BLOCK_RIGHT_BIT)
+                block_textures[bt.block][BLOCK_RIGHT] = tea;
+            if(bt.sides & BLOCK_FRONT_BIT)
+                block_textures[bt.block][BLOCK_FRONT] = tea;
+            if(bt.sides & BLOCK_BACK_BIT)
+                block_textures[bt.block][BLOCK_BACK] = tea;
+        }
+
+    //Slight hack, you can't assign a texture to multiple blocks
+    block_textures[BLOCK_GRASS][BLOCK_BOTTOM] = block_textures[BLOCK_DIRT][BLOCK_BOTTOM];
+    block_textures[BLOCK_SNOWY_GRASS][BLOCK_TOP] = block_textures[BLOCK_SNOW][BLOCK_TOP];
+    block_textures[BLOCK_SNOWY_GRASS][BLOCK_BOTTOM] = block_textures[BLOCK_DIRT][BLOCK_BOTTOM];
+    // Every log shares the oak's rings on its ends.
+    for(BLOCK log : { BLOCK_SPRUCE_LOG, BLOCK_BIRCH_LOG })
+    {
+        block_textures[log][BLOCK_TOP] = block_textures[BLOCK_WOOD][BLOCK_TOP];
+        block_textures[log][BLOCK_BOTTOM] = block_textures[BLOCK_WOOD][BLOCK_BOTTOM];
+    }
+
+    // Assign special_block_textures based on special_block_texture_idx
+    for(unsigned int i = 0; i < sizeof(special_block_texture_idx)/sizeof(*special_block_texture_idx); i++)
+    {
+        auto &idx = special_block_texture_idx[i];
+        special_block_textures[i] = terrain_atlas[idx.x][idx.y];
+    }
+
+    //Prerender four times the same texture to speed up drawing, see terrain.h
+    const BLOCK_TEXTURE quad_textures[] = { ALL(BLOCK_DIRT), SID(BLOCK_GRASS), TOP(BLOCK_GRASS), ALL(BLOCK_STONE), ALL(BLOCK_SAND), SID(BLOCK_WOOD), ALL(BLOCK_PLANKS_NORMAL), ALL(BLOCK_LEAVES) };
+    terrain_quad = newTexture(field_width * 2 * (sizeof(quad_textures)/sizeof(*quad_textures)), field_height * 2);
+
+    for(BLOCK b = 0; b <= BLOCK_NORMAL_LAST; b++)
+        for(uint8_t s = 0; s <= BLOCK_SIDE_LAST; s++)
+            quad_block_textures[b][s].has_quad = false;
+
+    unsigned int x = 0;
+    for(BLOCK_TEXTURE bt : quad_textures)
+    {
+        TextureAtlasEntry *tae = nullptr;
+
+        if(bt.sides & BLOCK_BOTTOM_BIT)
+            tae = &block_textures[bt.block][BLOCK_BOTTOM].current;
+        if(bt.sides & BLOCK_TOP_BIT)
+            tae = &block_textures[bt.block][BLOCK_TOP].current;
+        if(bt.sides & BLOCK_LEFT_BIT)
+            tae = &block_textures[bt.block][BLOCK_LEFT].current;
+        if(bt.sides & BLOCK_RIGHT_BIT)
+            tae = &block_textures[bt.block][BLOCK_RIGHT].current;
+        if(bt.sides & BLOCK_FRONT_BIT)
+            tae = &block_textures[bt.block][BLOCK_FRONT].current;
+        if(bt.sides & BLOCK_BACK_BIT)
+            tae = &block_textures[bt.block][BLOCK_BACK].current;
+
+        if(!tae)
+        {
+            printf("Block %d has no texture!\n", bt.block);
+            continue;
+        }
+
+        //- 1 to reverse the workaround above. Yes, I hate myself for this.
+        drawTexture(*terrain_current, *terrain_quad, tae->left - 1, tae->top - 1, field_width, field_height, x, 0, field_width, field_height);
+        drawTexture(*terrain_current, *terrain_quad, tae->left - 1, tae->top - 1, field_width, field_height, x + field_width, 0, field_width, field_height);
+        drawTexture(*terrain_current, *terrain_quad, tae->left - 1, tae->top - 1, field_width, field_height, x+ field_width, field_height, field_width, field_height);
+        drawTexture(*terrain_current, *terrain_quad, tae->left - 1, tae->top - 1, field_width, field_height, x, field_height, field_width, field_height);
+
+        //Get an average color of the block
+        RGB sum;
+        for(unsigned int tex_x = tae->left - 1; tex_x <= tae->right; ++tex_x)
+            for(unsigned int tex_y = tae->top - 1; tex_y <= tae->bottom; ++tex_y)
+            {
+                RGB rgb = rgbColor(terrain_current->bitmap[tex_x + tex_y*terrain_current->width]);
+                sum.r += rgb.r;
+                sum.g += rgb.g;
+                sum.b += rgb.b;
+            }
+
+        int pixels = field_width * field_height;
+        sum.r /= pixels;
+        sum.g /= pixels;
+        sum.b /= pixels;
+
+        auto colorWithBrightness = [](const RGB &c, const GLFix brightness) {
+            return colorRGB(c.r * brightness, c.g * brightness, c.b * brightness);
+        };
+
+        //And add the workaround here again..
+        TerrainQuadEntry tqe = {
+            true,
+            textureArea(x + 1, 1, field_width * 2 - 2, field_height * 2 - 2),
+            { colorRGB(sum),
+              colorWithBrightness(sum, 0.90f),
+              colorWithBrightness(sum, 0.80f),
+              colorWithBrightness(sum, 0.85f),
+              colorWithBrightness(sum, 0.95f), }
+        };
+
+        if(bt.sides & BLOCK_BOTTOM_BIT)
+            quad_block_textures[bt.block][BLOCK_BOTTOM] = tqe;
+        if(bt.sides & BLOCK_TOP_BIT)
+            quad_block_textures[bt.block][BLOCK_TOP] = tqe;
+        if(bt.sides & BLOCK_LEFT_BIT)
+            quad_block_textures[bt.block][BLOCK_LEFT] = tqe;
+        if(bt.sides & BLOCK_RIGHT_BIT)
+            quad_block_textures[bt.block][BLOCK_RIGHT] = tqe;
+        if(bt.sides & BLOCK_FRONT_BIT)
+            quad_block_textures[bt.block][BLOCK_FRONT] = tqe;
+        if(bt.sides & BLOCK_BACK_BIT)
+            quad_block_textures[bt.block][BLOCK_BACK] = tqe;
+
+        x += field_width * 2;
+    }
+
+    //Part 2 of the hack above
+    quad_block_textures[BLOCK_GRASS][BLOCK_BOTTOM] = quad_block_textures[BLOCK_DIRT][BLOCK_BOTTOM];
+
+    if(lcd_type() == SCR_320x240_4)
+    {
+        greyscaleTexture(*terrain_current);
+        if(terrain_resized != terrain_current)
+            greyscaleTexture(*terrain_resized);
+        greyscaleTexture(*terrain_quad);
+    }
+
+    //Make the texture available to others for sharing
+    inv_selection_p = &inv_selection;
+
+    door_preview = newTexture(16, 32);
+    TextureAtlasEntry door = terrain_atlas[1][5].current;
+    door.bottom += door.bottom - door.top; //Double height
+    drawTexture(*terrain_current, *door_preview, door.left, door.top, door.right - door.left, door.bottom - door.top, 0, 0, 16, 32);
+}
+
+void terrainUninit()
+{
+    if(terrain_resized != terrain_current)
+        deleteTexture(terrain_resized);
+
+    if(terrain_current != &terrain)
+        deleteTexture(terrain_current);
+
+    deleteTexture(terrain_quad);
+
+    deleteTexture(door_preview);
+}
