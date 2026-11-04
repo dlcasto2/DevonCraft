@@ -24,7 +24,7 @@ AABB swimBox(const AABB &b)
     return AABB(b.low_x, b.low_y + shrink, b.low_z, b.high_x, b.high_y - shrink, b.high_z);
 }
 
-// 1.8.8 entities step up to 0.6 blocks; Crafti uses auto-jump on land, but
+// 1.8.8 entities step up to 0.6 blocks; DevonCraft uses auto-jump on land, but
 // in water this is what lets you climb out onto a bank.
 static const GLFix SWIM_STEP = GLFix(BLOCK_SIZE) * 3 / 5;
 

@@ -8,9 +8,9 @@
 #include <cstdio>
 
 TEST_CASE("path helpers") {
-    CHECK(backupPathFor("/documents/ndless/crafti.map.tns") == "/documents/ndless/crafti.map.bak.tns");
-    CHECK(tempPathFor("/a/crafti.map.tns") == "/a/crafti.map.tmp.tns");
-    CHECK(newWorldPathFor("/a/crafti.map.tns") == "/a/crafti.map.new.tns");
+    CHECK(backupPathFor("/documents/ndless/devoncraft.map.tns") == "/documents/ndless/devoncraft.map.bak.tns");
+    CHECK(tempPathFor("/a/devoncraft.map.tns") == "/a/devoncraft.map.tmp.tns");
+    CHECK(newWorldPathFor("/a/devoncraft.map.tns") == "/a/devoncraft.map.new.tns");
 }
 TEST_CASE("unreadable save is never overwritten") {
     CHECK(chooseSavePath("/a/w.map.tns", LoadResult::UNREADABLE) == "/a/w.map.new.tns");
@@ -21,9 +21,9 @@ TEST_CASE("survival section round-trips") {
     player_state.health = 7; player_state.mode = GameMode::SURVIVAL; world_state.difficulty = Difficulty::TORMENT;
     world_state.time_of_day = 18000; player_inventory.slots[30] = ItemStack(ITEM_EMERALD, 9);
     block_storage.create({1, 1, 1}, StorageKind::CHEST);
-    gzFile o = gzopen("/tmp/crafti_sv.gz", "wb"); SaveWriter w(o); CHECK(writeSurvivalSection(w)); gzclose(o);
+    gzFile o = gzopen("/tmp/devoncraft_sv.gz", "wb"); SaveWriter w(o); CHECK(writeSurvivalSection(w)); gzclose(o);
     player_state = PlayerState(); world_state = WorldState(); player_inventory.clear(); block_storage.clear();
-    gzFile i = gzopen("/tmp/crafti_sv.gz", "rb"); SaveReader r(i); CHECK(readSurvivalSection(r)); gzclose(i);
+    gzFile i = gzopen("/tmp/devoncraft_sv.gz", "rb"); SaveReader r(i); CHECK(readSurvivalSection(r)); gzclose(i);
     CHECK(player_state.health == 7); CHECK(player_state.mode == GameMode::SURVIVAL);
     CHECK(world_state.difficulty == Difficulty::TORMENT); CHECK(world_state.time_of_day == 18000);
     CHECK(player_inventory.slots[30].count == 9); CHECK(block_storage.find({1, 1, 1}) != nullptr);

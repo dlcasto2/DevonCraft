@@ -1,4 +1,4 @@
-# Host-side unit tests for Crafti's pure-logic code.
+# Host-side unit tests for DevonCraft's pure-logic code.
 # Paths in HOST_SRCS are relative to the repository root.
 CXX ?= g++
 CXXFLAGS = -std=c++11 -fno-rtti -Wall -Wextra -g -I.. -I../nGL -I.

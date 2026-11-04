@@ -39,7 +39,11 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    terrainInit("/documents/ndless/crafti.ppm.tns");
+    const char *texture_path = "/documents/ndless/devoncraft.ppm.tns";
+    // Keep compatibility with an external texture atlas installed under the old name.
+    if(access(texture_path, R_OK) != 0 && access("/documents/ndless/crafti.ppm.tns", R_OK) == 0)
+        texture_path = "/documents/ndless/crafti.ppm.tns";
+    terrainInit(texture_path);
     lightingInit();
     glBindTexture(terrain_current);
 
@@ -54,8 +58,18 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    //If crafti has been started by the file extension association, use the first argument as savefile path
-    Task::initializeGlobals(argc > 1 ? argv[1] : "/documents/ndless/crafti.map.tns");
+    // Explicit file-association paths win. New installs use DevonCraft's filename.
+    // If only an old Crafti save exists, load it in place instead of overwriting or
+    // silently moving it; users can keep playing without losing their existing world.
+    const char *default_save_path = "/documents/ndless/devoncraft.map.tns";
+    bool using_legacy_save = false;
+    if(argc <= 1 && access(default_save_path, F_OK) != 0
+       && access("/documents/ndless/crafti.map.tns", F_OK) == 0)
+    {
+        default_save_path = "/documents/ndless/crafti.map.tns";
+        using_legacy_save = true;
+    }
+    Task::initializeGlobals(argc > 1 ? argv[1] : default_save_path);
 
     current_inventory.resetToDefaults();
 
@@ -63,7 +77,7 @@ int main(int argc, char *argv[])
     switch(load_result)
     {
     case LoadResult::OK:
-        world_task.setMessage("World loaded.");
+        world_task.setMessage(using_legacy_save ? "Legacy world loaded." : "World loaded.");
         break;
     case LoadResult::MISSING:
         break;
@@ -82,8 +96,8 @@ int main(int argc, char *argv[])
 
 
     #ifndef _TINSPIRE
-        const bool verify_fixture = getenv("CRAFTI_VERIFY_FIXTURE") != nullptr;
-        const bool save_on_exit = getenv("CRAFTI_SAVE_ON_EXIT") != nullptr;
+        const bool verify_fixture = getenv("DEVONCRAFT_VERIFY_FIXTURE") != nullptr;
+        const bool save_on_exit = getenv("DEVONCRAFT_SAVE_ON_EXIT") != nullptr;
     #endif
 
     //Start with WorldTask as current task
@@ -94,13 +108,13 @@ int main(int argc, char *argv[])
     game_clock.reset(platformTicks());
 
     #ifndef _TINSPIRE
-        const char *tpf_env = getenv("CRAFTI_TICKS_PER_FRAME");
+        const char *tpf_env = getenv("DEVONCRAFT_TICKS_PER_FRAME");
         const unsigned long ticks_per_frame = tpf_env ? strtoul(tpf_env, nullptr, 10) : 0;
     #endif
 
     #ifndef _TINSPIRE
-        // Headless runs: stop after CRAFTI_MAX_FRAMES frames, without saving.
-        const char *max_frames_env = getenv("CRAFTI_MAX_FRAMES");
+        // Headless runs: stop after DEVONCRAFT_MAX_FRAMES frames, without saving.
+        const char *max_frames_env = getenv("DEVONCRAFT_MAX_FRAMES");
         const unsigned long max_frames = max_frames_env ? strtoul(max_frames_env, nullptr, 10) : 0;
         unsigned long frames_run = 0;
     #endif

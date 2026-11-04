@@ -33,7 +33,7 @@ Biome biomeFor(const Climate &c);
 Climate climateAt(const PerlinNoise &noise, int x, int z);
 Biome biomeAt(const PerlinNoise &noise, int x, int z);
 
-// Ground height of the column (blocks from the bottom of the world): Crafti's
+// Ground height of the column (blocks from the bottom of the world): the
 // original rolling terrain, raised where the hilliness field is high, up to
 // MAX_GROUND. Outside the hills it's exactly the original height, so new
 // chunks meet old ones without a step.

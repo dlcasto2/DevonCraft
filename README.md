@@ -1,14 +1,14 @@
-Crafti Survival Edition
-=======================
+DevonCraft Survival Edition
+===========================
 
-A survival-mode fork of [crafti](https://github.com/Vogtinator/crafti) by Fabian Vogt: 3D Minecraft for TI-Nspire calculators running Ndless.
-The CX is the primary target; this source tree also includes a compatibility path for the original monochrome ClickPad. See [the ClickPad port notes](docs/clickpad-port.md) for its status and build requirements.
+DevonCraft is a survival-focused continuation of the original [Crafti](https://github.com/Vogtinator/crafti) game by Fabian Vogt: 3D Minecraft-inspired play for TI-Nspire calculators running Ndless.
+This source tree includes a dedicated compatibility path for the original monochrome TI-Nspire CAS ClickPad (OS 3.9.0.463, Boot2 3.0.1.131), alongside the color CX path. The ClickPad code has been audited at source level but still requires a real-device build and test; see [the ClickPad port notes](docs/clickpad-port.md).
 The goal is 1.8.8-style survival play (items, mining, mobs, and difficulty levels) on a calculator.
 
 > **Status:** survival basics are playable: hold-to-mine with tool tiers, block drops, a day/night cycle,
 > crafting, furnaces, chests, beds, the smithing table, lakes to swim in and scoop with a bucket, and seven biomes.
 > Health and hunger, then mobs, are next.
-> Every screenshot below is from the current build.
+> Screenshots are reference captures from this source snapshot; the menu and help screens have been refreshed for DevonCraft branding.
 
 Screenshots
 -----------
@@ -73,7 +73,7 @@ What's new so far
     a block. Ice melts into water when broken, and cacti only stand on sand with nothing beside them.
   - Turn on Show FPS in Options to see the biome you're in.
   - Biomes only shape chunks generated from now on, so the hills can end in a cliff where they meet land you've explored.
-- **Stress test:** `crafti-stress.tns` shows FPS and ticks per second on the calculator.
+- **Stress test:** `devoncraft-stress.tns` shows FPS and ticks per second on the calculator.
 
 Planned
 -------
@@ -85,7 +85,7 @@ Planned
 Building
 --------
 
-See [docs/building.md](docs/building.md). GitHub Actions builds `crafti.tns` and `crafti-stress.tns` on every push (see the **Actions** tab).
+See [docs/building.md](docs/building.md) and [PUBLISHING.md](PUBLISHING.md). GitHub Actions builds `devoncraft.tns` and `devoncraft-stress.tns` on every push (see the **Actions** tab).
 
 Controls
 --------
@@ -108,10 +108,10 @@ Controls
 Limitations
 -----------
 
-crafti doesn't use floats, so there will be some graphical inaccuracies.
+DevonCraft uses fixed-point rendering, so some graphical inaccuracies remain.
 
 Credits
 -------
 
-Original crafti by [Fabian Vogt (Vogtinator)](https://github.com/Vogtinator/crafti); ticalc.org Program of the Year 2014.
+DevonCraft is based on the original Crafti project by [Fabian Vogt (Vogtinator)](https://github.com/Vogtinator/crafti), winner of the ticalc.org Program of the Year 2014. Original author and third-party asset credits are preserved in `license.txt`.
 Block textures from PureBDcraft by https://bdcraft.net.

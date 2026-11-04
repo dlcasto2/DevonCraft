@@ -1,0 +1,57 @@
+DevonCraft — changed-files package
+
+This is a DELTA package, not a complete source tree.
+Unzip its contents over the original source repository root.
+Only files added or modified by this work are included.
+The user-supplied workflow input crafti.tns is intentionally not duplicated.
+
+MODIFIED (36):
+  .github/workflows/calculator.yml
+  .github/workflows/main.yml
+  Makefile
+  Makefile.pc
+  README.md
+  bedrenderer.h
+  biome.cpp
+  biome.h
+  block_art.cpp
+  block_art_paint.cpp
+  chunk.cpp
+  daylight.h
+  docs/baseline.md
+  docs/building.md
+  docs/clickpad-port.md
+  docs/screenshots/help.png
+  docs/screenshots/menu.png
+  gui_art.cpp
+  gui_art.h
+  helptask.cpp
+  item_icons.cpp
+  main.cpp
+  physics.h
+  player_motion.cpp
+  player_motion.h
+  terrain.cpp
+  tests/Makefile
+  tests/test_biome.cpp
+  tests/test_daylight.cpp
+  tests/test_savefile.cpp
+  tests/test_storage.cpp
+  tools/gen_block_art.py
+  tools/gen_gui_art.py
+  tools/gen_item_icons.py
+  tools/preview/gui_title.png
+  uikit.cpp
+
+ADDED (5):
+  PUBLISHING.md
+  devoncraft-survival-foundation.bundle
+  docs/branding-and-compatibility-audit.md
+  tools/rebrand_screenshots.py
+  workflow-inputs/README.md
+
+DELETED (2; remove these manually from the source tree):
+  HOW-TO-PUT-THIS-ON-GITHUB.txt
+  crafti-survival-foundation.bundle
+
+No new devoncraft.tns executable is included. A native Ndless build and physical calculator validation remain outstanding.

@@ -20,7 +20,7 @@ GLFix field(const PerlinNoise &noise, int x, int z, int scale, GLFix slice)
     return noise.noise(GLFix(x) / scale, GLFix(z) / scale, slice);
 }
 
-// Crafti 1.3's terrain, sampled exactly as Chunk::generate always has.
+// the original 1.3 terrain, sampled exactly as Chunk::generate always has.
 int originalHeight(const PerlinNoise &noise, int x, int z)
 {
     const int cx = x >> 3, cz = z >> 3, lx = x & 7, lz = z & 7;
@@ -29,7 +29,7 @@ int originalHeight(const PerlinNoise &noise, int x, int z)
     return world_gen_min + (n * (world_gen_max - world_gen_min)).round();
 }
 
-// Forests are about two trees per chunk: twice Crafti 1.3's one, and few
+// Forests are about two trees per chunk: twice the original 1.3 rate, and few
 // enough leaves for the calculator to draw.
 const BiomeFeatures features[static_cast<int>(Biome::COUNT)] = {
     //  trees, birch, spruce, flowers, cacti, bushes, frozen

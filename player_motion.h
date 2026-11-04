@@ -5,7 +5,7 @@
 
 #include "physics.h"
 
-// Crafti 1.3 moved the player per frame; the game now ticks at 20/s. These
+// The original 1.3 controller moved the player per frame; the game now ticks at 20/s. These
 // scale the per-frame distances by the old frame rate so motion feels the same.
 GLFix velocityPerTick(GLFix per_frame, int fps);   // per_frame * fps / 20
 GLFix accelPerTick(GLFix per_frame, int fps);      // per_frame * fps * fps / 400

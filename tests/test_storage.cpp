@@ -2,7 +2,7 @@
 #include "blockstorage.h"
 #include "itempile.h"
 
-static gzFile openTmp(const char *mode) { return gzopen("/tmp/crafti_storage_test.gz", mode); }
+static gzFile openTmp(const char *mode) { return gzopen("/tmp/devoncraft_storage_test.gz", mode); }
 
 TEST_CASE("storage records have the right sizes") {
     BlockStorage s;

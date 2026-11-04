@@ -16,7 +16,7 @@ int daylightFactor(uint32_t time_of_day);
 // The world brightness level (lighting.h) for this time.
 int skyBrightnessLevel(uint32_t time_of_day);
 
-// The sky colour (0-255 per channel): Crafti's blue by day, warm at
+// The sky colour (0-255 per channel): DevonCraft's blue by day, warm at
 // sunrise and sunset, dark blue at night.
 void skyColor(uint32_t time_of_day, unsigned &r, unsigned &g, unsigned &b);
 

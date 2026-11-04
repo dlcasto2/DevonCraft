@@ -3,7 +3,7 @@
 
 #include "blockrenderer.h"
 
-// A bed half: a box 9/16 of a block tall, using the bed textures in Crafti's
+// A bed half: a box 9/16 of a block tall, using the bed textures in DevonCraft's
 // bundled atlas. The data says which way it faces and which half it is.
 class BedRenderer : public DumbBlockRenderer
 {

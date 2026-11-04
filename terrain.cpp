@@ -174,7 +174,7 @@ void terrainInit(const char *texture_path)
     int field_height = terrain_current->height / fields_y;
 
     // Birch leaves are oak leaves in a paler green: copy the grey originals
-    // (fancy and fast) into the jukebox cells, which Crafti doesn't use.
+    // (fancy and fast) into the jukebox cells, which this game does not use.
     copyCell(*terrain_current, OAK_LEAVES_FANCY_X, OAK_LEAVES_Y, BIRCH_LEAVES_FANCY_X, BIRCH_LEAVES_Y, field_width, field_height);
     copyCell(*terrain_current, OAK_LEAVES_FANCY_X + 1, OAK_LEAVES_Y, BIRCH_LEAVES_FAST_X, BIRCH_LEAVES_Y, field_width, field_height);
 

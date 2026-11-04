@@ -539,7 +539,7 @@ bool Chunk::intersectsRay(GLFix rx, GLFix ry, GLFix rz, GLFix dx, GLFix dy, GLFi
     return true;
 }
 
-// Crafti 1.3's ore pillars: below the surface layers a column is either all
+// the original 1.3 ore pillars: below the surface layers a column is either all
 // stone or, where its noise is low, all one ore.
 static BLOCK deepBlock(const PerlinNoise &noise, int local_x, int local_z, int chunk_x, int chunk_z)
 {

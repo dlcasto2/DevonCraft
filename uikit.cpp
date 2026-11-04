@@ -42,7 +42,7 @@ inline COLOR grey(unsigned v)
     return static_cast<COLOR>(((v >> 3) << 11) | ((v >> 2) << 5) | (v >> 3));
 }
 
-// ---- block previews, shrunk from Crafti's 24-pixel previews to 16 and cached
+// ---- block previews, shrunk from the legacy 24-pixel block previews to 16 and cached
 
 struct PreviewEntry {
     BLOCK_WDATA block;

@@ -36,7 +36,7 @@ TEST_CASE("brightness never drops below the night floor") {
     }
 }
 
-TEST_CASE("the sky is Crafti's blue at noon and dark at night") {
+TEST_CASE("the sky is DevonCraft's blue at noon and dark at night") {
     unsigned r, g, b;
     skyColor(6000, r, g, b);
     CHECK(r == 102); CHECK(g == 153); CHECK(b == 204);

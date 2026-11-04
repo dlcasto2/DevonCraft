@@ -3,7 +3,7 @@
 
 namespace {
 
-// Atlas cells in row 4 whose stock textures (mycelium) Crafti doesn't use.
+// Atlas cells in row 4 whose stock textures (mycelium) this game does not use.
 constexpr int DEBRIS_SIDE_CELL = 13, DEBRIS_TOP_CELL = 14, ART_ROW = 4;
 
 // Nearest-neighbour scale of a 16x16 piece of art into one atlas cell,

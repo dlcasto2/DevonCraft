@@ -62,7 +62,7 @@ TEST_CASE("every biome gets a fair share of the world, in patches") {
     CHECK(changes * 8 < total);
 }
 
-TEST_CASE("outside the hills the ground is Crafti's old height, so old and new chunks meet") {
+TEST_CASE("outside the hills the ground is the original height baseline, so old and new chunks meet") {
     PerlinNoise noise(1234);
     int same = 0, hills = 0, total = 0;
     for(int x = -300; x < 300; x += 3)

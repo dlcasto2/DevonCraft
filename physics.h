@@ -20,7 +20,7 @@ struct MoveResult {
     bool on_ground;     // y was blocked while moving down
 };
 
-// Same rule as Crafti's original player code: move x, then z, then y; an axis
+// Same rule as the original player movement code: move x, then z, then y; an axis
 // whose move would intersect is not applied.
 MoveResult moveWithCollision(const CollisionQuery &world, AABB &box, GLFix dx, GLFix dy, GLFix dz);
 

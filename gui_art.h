@@ -20,7 +20,7 @@ enum HudIcon { HUD_HEART = 0, HUD_HEART_HALF, HUD_HEART_EMPTY, HUD_FOOD, HUD_FOO
 // Ten 16x16 block-breaking stages in a row (black is transparent: drawn in 3D).
 extern TEXTURE gui_crack;
 
-// The "CRAFTI" wordmark for the menu.
+// The "DEVONCRAFT" wordmark for the menu.
 extern TEXTURE gui_title;
 
 // 32x32 sun and moon for the sky. Black is transparent (nGL's rule for 3D).
