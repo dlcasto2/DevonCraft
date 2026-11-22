@@ -105,7 +105,9 @@ void World::setPosition(int x, int y, int z)
     {
         visible_chunks.clear();
 
-        int dist = field_of_view;
+        // Keep the selected distance saved, but cap active chunks in Low graphics.
+        int dist = settings_task.getValue(SettingsTask::FAST_MODE)
+                ? std::min(field_of_view, 2) : field_of_view;
         int distsq = dist*dist;
 
         // Turn the + shape into a cube to load the directly adjacent corners.
