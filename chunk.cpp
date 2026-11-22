@@ -13,6 +13,7 @@
 #include "lighting.h"
 #include "fastmath.h"
 #include "blockrenderer.h"
+#include "settingstask.h"
 
 //Texture with "Loading" written on it
 #include "textures/loadingtext.h"
@@ -65,11 +66,17 @@ void Chunk::addUnalignedVertex(const VERTEX &v)
 
 void Chunk::addAnimation(const Chunk::Animation &animation)
 {
+    // Cosmetic block animation is optional on slower calculators.
+    if(settings_task.getValue(SettingsTask::FAST_MODE))
+        return;
     animations.push_back(animation);
 }
 
 void Chunk::addParticle(const Particle &particle)
 {
+    // Destruction and lava particles are cosmetic and can be expensive.
+    if(settings_task.getValue(SettingsTask::FAST_MODE))
+        return;
     particles.push_back(particle);
 }
 
@@ -330,11 +337,14 @@ void Chunk::render()
         }
     }
 
-    for(auto &animation : animations)
-        animation.animate(animation.x, animation.y, animation.z, *this);
+    if(!settings_task.getValue(SettingsTask::FAST_MODE))
+    {
+        for(auto &animation : animations)
+            animation.animate(animation.x, animation.y, animation.z, *this);
 
-    for(auto &particle : particles)
-        particle.render();
+        for(auto &particle : particles)
+            particle.render();
+    }
 
     return glPopMatrix();
 }
