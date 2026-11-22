@@ -10,6 +10,11 @@
 // about it is saved and it's the same every time a column is generated.
 enum class Biome : uint8_t {
     PLAINS = 0, FOREST, BIRCH_FOREST, TAIGA, ICE_PLAINS, DESERT, EXTREME_HILLS,
+    // Abyssal Transcendence world biomes (kept separate from the legacy set).
+    ABYSSAL_OCEAN, ABYSSAL_BEACH, ABYSSAL_MEADOW, ABYSSAL_WILDWOOD,
+    ABYSSAL_DEEPWOOD, ABYSSAL_HIGHLAND, ABYSSAL_SNOW, ABYSSAL_DEAD,
+    ABYSSAL_ABYSS, ABYSSAL_CRYSTAL, ABYSSAL_ASHLAND, ABYSSAL_VOID,
+    ABYSSAL_BETWEEN, ABYSSAL_RUINS, ABYSSAL_RIM,
     COUNT
 };
 
