@@ -312,13 +312,13 @@ AbyssalColumn abyssalColumnAt(const AbyssalNoise &noise, int x, int z)
     moisture += GLFix(0.2f) * expNegative(mx * mx + mz * mz);
 
     const GLFix river = absFix(noise.noise2(3, X / 430 + 50, Z / 430 - 20));
-    if(river < GLFix(0.055f) && height > sea - 1)
-        height = lerpFix(sea - GLFix(3.5f), height, smooth(GLFix(0), GLFix(0.055f), river));
+    if(river < GLFix(0.055f) && height > sea - GLFix(0.4167f))
+        height = lerpFix(sea - GLFix(1.4583f), height, smooth(GLFix(0), GLFix(0.055f), river));
 
     const GLFix lake_noise = noise.noise2(5, X / 140 + GLFix(7.7f), Z / 140 - GLFix(3.3f));
-    if(lake_noise > GLFix(0.55f) && height > sea - 3)
+    if(lake_noise > GLFix(0.55f) && height > sea - GLFix(1.25f))
     {
-        const GLFix lake_floor = minFix(height, sea - GLFix(2.5f) - (lake_noise - GLFix(0.55f)) * 14);
+        const GLFix lake_floor = minFix(height, sea - GLFix(1.0417f) - (lake_noise - GLFix(0.55f)) * GLFix(5.8333f));
         height = lerpFix(height, lake_floor, smooth(GLFix(0.55f), GLFix(0.66f), lake_noise));
     }
 
@@ -329,7 +329,7 @@ AbyssalColumn abyssalColumnAt(const AbyssalNoise &noise, int x, int z)
         const GLFix distance = length2D(dx, dz) + noise.noise2(1, X / 18, Z / 18) * 5;
         if(distance < GLFix(lake.radius + 7))
         {
-            const GLFix lake_floor = sea - GLFix(1.5f) - smooth(GLFix(lake.radius), GLFix(0), distance) * 6;
+            const GLFix lake_floor = sea - GLFix(0.625f) - smooth(GLFix(lake.radius), GLFix(0), distance) * GLFix(2.5f);
             height = lerpFix(height, lake_floor, smooth(GLFix(lake.radius + 7), GLFix(lake.radius - 3), distance));
         }
     }
