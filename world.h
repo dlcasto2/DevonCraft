@@ -9,6 +9,7 @@
 #include "terrain.h"
 #include "chunk.h"
 #include "perlinnoise.h"
+#include "abyssalgen.h"
 #include "physics.h"
 
 struct BLOCK_CHANGE {
@@ -32,6 +33,7 @@ public:
     // hit_water_sources is set (an empty bucket aims at them).
     bool intersectsRay(GLFix x, GLFix y, GLFix z, GLFix dx, GLFix dy, GLFix dz, VECTOR3 &result, AABB::SIDE &side, GLFix &dist, bool hit_water_sources) const;
     const PerlinNoise &noiseGenerator() const;
+    const AbyssalNoise &abyssalNoiseGenerator() const;
     uint32_t worldSeed() const { return *seed; }
     void clear();
     void setDirty();
@@ -56,6 +58,7 @@ private:
     int cen_x = 0, cen_y = 0, cen_z = 0;
     int field_of_view = 3;
     PerlinNoise perlin_noise;
+    AbyssalNoise abyssal_noise;
     unsigned int *seed;
 
     std::map<std::tuple<int,int,int>,Chunk*> all_chunks;
