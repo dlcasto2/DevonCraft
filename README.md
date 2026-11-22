@@ -44,6 +44,7 @@ What's new so far
   - button menus and a pixel font with drop shadows
 - **Items:** 56 items, each with its own icon: tools in six materials, food, ores, materials, buckets and snowballs.
 - **Game mode:** switch between Survival and Creative in Options (locked in Hardcore).
+- **Low graphics:** caps the active chunk radius at 2, uses opaque leaves, and skips cosmetic block animations and particles. It leaves generated terrain and saved block data unchanged.
 - **Game clock:** fixed 20 ticks per second, independent of frame rate.
 - **Entities:** up to 32 entities with physics and collision.
 - **Saves:** new save format (v7) with an automatic backup. An unreadable save is never overwritten, and old v6 worlds still load (in creative mode).
