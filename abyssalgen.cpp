@@ -93,7 +93,7 @@ void AbyssalNoise::setSeed(unsigned int seed)
 
     // The source world places one abyss, one dead region and two lakes on
     // deterministic rings around the starting continent.
-    abyss_anchor = ringAnchor(seed, 0xAby551u, 135, 205, 30);
+    abyss_anchor = ringAnchor(seed, 0xAB7551u, 135, 205, 30);
     dead_anchor = ringAnchor(seed, 0xDEA2u, 215, 305, 120);
     lake_anchors[0] = ringAnchor(seed, 0x1A6E1u, 34, 58, 15);
     lake_anchors[1] = ringAnchor(seed, 0x1A6E2u, 78, 112, 22);
