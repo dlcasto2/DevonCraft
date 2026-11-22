@@ -4,17 +4,20 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   host-tests:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out DevonCraft
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Install host test dependencies
-        run: sudo apt-get update && sudo apt-get install -y zlib1g-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++ zlib1g-dev
 
       - name: Run host-side unit tests
         run: make -C tests test
@@ -38,14 +41,30 @@ jobs:
           path: ndless
 
       - name: Install toolchain build dependencies
-        run: sudo apt-get update && sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev libboost-program-options-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev libboost-program-options-dev
 
-      # Build the toolchain directly. This intentionally avoids the cache action,
-      # which was failing before the build because its required `key` input was
-      # not being received by the workflow runner.
+      # The Ndless build script uses both the installed toolchain and its
+      # .built_* marker files to decide which compiler stages can be skipped.
+      # Cache both so a cache hit avoids the multi-stage GCC/binutils rebuild.
+      - name: Restore Ndless toolchain cache
+        id: toolchain-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ndless/ndless-sdk/toolchain/install
+            ndless/ndless-sdk/toolchain/.built_binutils
+            ndless/ndless-sdk/toolchain/.built_gcc_step1
+            ndless/ndless-sdk/toolchain/.built_newlib
+            ndless/ndless-sdk/toolchain/.built_gcc_step2
+            ndless/ndless-sdk/toolchain/.built_gdb
+          key: ndless-toolchain-${{ runner.os }}-r2020-${{ hashFiles('ndless/ndless-sdk/toolchain/build_toolchain.sh') }}
+
       - name: Build Ndless toolchain
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
         working-directory: ndless/ndless-sdk/toolchain
-        run: ./build_toolchain.sh
+        run: PARALLEL="-j$(nproc)" ./build_toolchain.sh
 
       - name: Add Ndless tools to PATH
         run: |
