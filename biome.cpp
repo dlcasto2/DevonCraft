@@ -40,6 +40,22 @@ const BiomeFeatures features[static_cast<int>(Biome::COUNT)] = {
     {    3,    0, 1000,   0,  0,  0, true  },  // Ice Plains: bare and frozen
     {    0,    0,    0,   0,  8, 10, false },  // Desert: cacti and dead bushes
     {   10,    0,  500,   2,  0,  0, false },  // Extreme Hills: a few oak and spruce
+    // Abyssal Transcendence biomes: source density translated to an 8x8 chunk.
+    {    0,    0,    0,   0,  0,  0, false },  // Open Water
+    {    2,    0,    0,   2,  0,  0, false },  // Shoreline
+    {    5,  200,    0,   8,  0,  0, false },  // Windmeadow
+    {   30,  250,    0,   5,  0,  0, false },  // Wildwood
+    {   48,  100,    0,   2,  0,  0, false },  // The Deepwood
+    {   12,    0,  600,   0,  0,  0, false },  // Highlands
+    {   10,    0, 1000,   0,  0,  0, true  },  // Frostpeaks
+    {    0,    0,    0,   0,  0, 90, false },  // The Dead Zone
+    {    0,    0,    0,   0,  0,  0, false },  // The Abyss
+    {    6,    0,  300,   1,  0,  0, false },  // Crystal Fields
+    {    2,    0,    0,   0,  0, 30, false },  // Ashlands
+    {    0,    0,    0,   0,  0,  0, false },  // The Void
+    {    0,    0,    0,   0,  0,  0, false },  // The Place That Came Before
+    {    5,  250,    0,   1,  0,  0, false },  // Old Ruins
+    {    0,    0,    0,   0,  0,  0, false },  // Abyssal Rim
 };
 
 } // namespace
@@ -47,7 +63,10 @@ const BiomeFeatures features[static_cast<int>(Biome::COUNT)] = {
 const char *biomeName(Biome b)
 {
     static const char *const names[static_cast<int>(Biome::COUNT)] = {
-        "Plains", "Forest", "Birch Forest", "Taiga", "Ice Plains", "Desert", "Extreme Hills"
+        "Plains", "Forest", "Birch Forest", "Taiga", "Ice Plains", "Desert", "Extreme Hills",
+        "Open Water", "Shoreline", "Windmeadow", "Wildwood", "The Deepwood",
+        "Highlands", "Frostpeaks", "The Dead Zone", "The Abyss", "Crystal Fields",
+        "Ashlands", "The Void", "The Place That Came Before", "Old Ruins", "Abyssal Rim"
     };
     return names[static_cast<int>(b)];
 }
@@ -112,6 +131,37 @@ Surface surfaceFor(Biome b, int ground_height, int steepness)
         if(ground_height > SNOW_LINE)
             return Surface{ BLOCK_SNOW, BLOCK_STONE, 0, 0, 0 };
         return Surface{ BLOCK_GRASS, BLOCK_DIRT, 2, 0, 0 };
+    case Biome::ABYSSAL_OCEAN:
+    case Biome::ABYSSAL_BEACH:
+        return Surface{ BLOCK_SAND, BLOCK_SAND, 3, BLOCK_SANDSTONE, 2 };
+    case Biome::ABYSSAL_MEADOW:
+    case Biome::ABYSSAL_WILDWOOD:
+        return Surface{ BLOCK_GRASS, BLOCK_DIRT, 4, 0, 0 };
+    case Biome::ABYSSAL_DEEPWOOD:
+        return Surface{ BLOCK_GRASS, BLOCK_DIRT, 3, BLOCK_COBBLESTONE, 1 };
+    case Biome::ABYSSAL_HIGHLAND:
+        if(steepness >= 3)
+            return Surface{ BLOCK_STONE, BLOCK_STONE, 1, 0, 0 };
+        if(ground_height >= SNOW_LINE + 1)
+            return Surface{ BLOCK_SNOW, BLOCK_STONE, 1, 0, 0 };
+        return Surface{ BLOCK_GRASS, BLOCK_DIRT, 2, 0, 0 };
+    case Biome::ABYSSAL_SNOW:
+        return Surface{ BLOCK_SNOW, BLOCK_STONE, 2, 0, 0 };
+    case Biome::ABYSSAL_DEAD:
+        return Surface{ BLOCK_NETHERRACK, BLOCK_COBBLESTONE, 2, BLOCK_STONE, 1 };
+    case Biome::ABYSSAL_ABYSS:
+    case Biome::ABYSSAL_RIM:
+        return Surface{ BLOCK_OBSIDIAN, BLOCK_NETHERRACK, 3, BLOCK_STONE, 2 };
+    case Biome::ABYSSAL_CRYSTAL:
+        return Surface{ BLOCK_DIAMOND, BLOCK_STONE, 2, BLOCK_STONE, 2 };
+    case Biome::ABYSSAL_ASHLAND:
+        return Surface{ BLOCK_NETHERRACK, BLOCK_COBBLESTONE, 3, BLOCK_STONE, 1 };
+    case Biome::ABYSSAL_VOID:
+        return Surface{ BLOCK_OBSIDIAN, BLOCK_OBSIDIAN, 2, 0, 0 };
+    case Biome::ABYSSAL_BETWEEN:
+        return Surface{ BLOCK_WOOL, BLOCK_STONE, 2, 0, 0 };
+    case Biome::ABYSSAL_RUINS:
+        return Surface{ BLOCK_COBBLESTONE, BLOCK_COBBLESTONE, 3, BLOCK_STONE, 1 };
     default:
         return Surface{ BLOCK_GRASS, BLOCK_DIRT, 4, 0, 0 };
     }
@@ -119,7 +169,8 @@ Surface surfaceFor(Biome b, int ground_height, int steepness)
 
 const BiomeFeatures &biomeFeatures(Biome b)
 {
-    return features[static_cast<int>(b)];
+    const unsigned int index = static_cast<unsigned int>(b);
+    return features[index < static_cast<unsigned int>(Biome::COUNT) ? index : 0];
 }
 
 uint32_t columnHash(int x, int z, uint32_t seed, uint32_t salt)

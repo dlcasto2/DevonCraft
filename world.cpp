@@ -8,7 +8,7 @@
 
 World world;
 
-World::World() : perlin_noise(0)
+World::World() : perlin_noise(0), abyssal_noise(0)
 {
     generateSeed();
 }
@@ -28,6 +28,7 @@ void World::generateSeed()
     free(old_seed);
     printf("Seed: %d\n", *seed);
     perlin_noise.setSeed(*seed);
+    abyssal_noise.setSeed(*seed);
 }
 
 constexpr int getLocal(const int global)
@@ -105,7 +106,9 @@ void World::setPosition(int x, int y, int z)
     {
         visible_chunks.clear();
 
-        int dist = field_of_view;
+        // Keep the selected distance saved, but cap active chunks in Low graphics.
+        int dist = settings_task.getValue(SettingsTask::FAST_MODE)
+                ? std::min(field_of_view, 2) : field_of_view;
         int distsq = dist*dist;
 
         // Turn the + shape into a cube to load the directly adjacent corners.
@@ -185,6 +188,11 @@ const PerlinNoise &World::noiseGenerator() const
     return perlin_noise;
 }
 
+const AbyssalNoise &World::abyssalNoiseGenerator() const
+{
+    return abyssal_noise;
+}
+
 void World::clear()
 {
     for(auto &&c : all_chunks)
@@ -213,6 +221,7 @@ bool World::loadFromFile(gzFile file)
 
     LOAD_FROM_FILE(*seed)
     perlin_noise.setSeed(*seed);
+    abyssal_noise.setSeed(*seed);
 
     unsigned int block_changes;
     LOAD_FROM_FILE(block_changes)

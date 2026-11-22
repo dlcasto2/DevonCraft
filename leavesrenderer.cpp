@@ -1,4 +1,5 @@
 #include "leavesrenderer.h"
+#include "settingstask.h"
 
 void LeavesRenderer::geometryNormalBlock(const BLOCK_WDATA /*block*/, const int local_x, const int local_y, const int local_z, const BLOCK_SIDE side, Chunk &c)
 {
@@ -28,5 +29,7 @@ void LeavesRenderer::drawPreview(const BLOCK_WDATA /*block*/, TEXTURE &dest, int
 
 bool LeavesRenderer::isTransparent()
 {
-    return settings_task.getValue(SettingsTask::LEAVES);
+    // Opaque leaves reduce transparent overdraw in Low graphics.
+    return !settings_task.getValue(SettingsTask::FAST_MODE)
+        && settings_task.getValue(SettingsTask::LEAVES);
 }
