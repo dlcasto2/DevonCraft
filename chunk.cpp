@@ -225,12 +225,15 @@ void Chunk::logic(bool ticks_enabled)
         }
     }
 
-    for(int i = particles.size() - 1; i >= 0; --i)
+    if(!settings_task.getValue(SettingsTask::FAST_MODE))
     {
-        bool remove = false;
-        particles[i].logic(&remove);
-        if(remove)
-            particles.erase(particles.begin() + i);
+        for(int i = particles.size() - 1; i >= 0; --i)
+        {
+            bool remove = false;
+            particles[i].logic(&remove);
+            if(remove)
+                particles.erase(particles.begin() + i);
+        }
     }
 }
 
