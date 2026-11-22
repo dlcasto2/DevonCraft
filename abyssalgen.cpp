@@ -39,6 +39,10 @@ GLFix length2D(GLFix x, GLFix z)
 GLFix expNegative(GLFix x)
 {
     x = maxFix(x, GLFix(0));
+    // Beyond this range the regional falloff is negligible. Capping also
+    // keeps the fixed-point square inside its 32-bit intermediate range.
+    if(x >= GLFix(32))
+        return GLFix(0);
     const GLFix x2 = x * x;
     return GLFix(1) / (GLFix(1) + x + x2 * GLFix(0.5f));
 }
@@ -134,9 +138,9 @@ AbyssalColumn abyssalColumnAt(const AbyssalNoise &noise, int x, int z)
     // Source parameters for the Origin world, with vertical amplitude scaled
     // from 96 to DevonCraft's 40-block world.
     GLFix continent = fbm2(noise, 0, X / 700, Z / 700, 3) + GLFix(0.05f);
-    const GLFix anchor_x = X / GLFix(120);
-    const GLFix anchor_z = Z / GLFix(120);
-    const GLFix anchor_q = anchor_x * anchor_x + anchor_z * anchor_z;
+    const float anchor_x = static_cast<float>(X) / 120.0f;
+    const float anchor_z = static_cast<float>(Z) / 120.0f;
+    const GLFix anchor_q(anchor_x * anchor_x + anchor_z * anchor_z);
     continent += GLFix(0.55f) * expNegative(anchor_q);
 
     const GLFix hills = fbm2(noise, 1, X / 170, Z / 170, 3);
@@ -155,9 +159,9 @@ AbyssalColumn abyssalColumnAt(const AbyssalNoise &noise, int x, int z)
 
     GLFix moisture = noise.noise2(4, X / 330 + GLFix(3.1f), Z / 330 + GLFix(9.7f)) * GLFix(0.5f) + GLFix(0.5f);
     moisture += noise.noise2(4, X / 90, Z / 90) * GLFix(0.08f);
-    const GLFix moisture_x = X / GLFix(90);
-    const GLFix moisture_z = Z / GLFix(90);
-    moisture += GLFix(0.2f) * expNegative(moisture_x * moisture_x + moisture_z * moisture_z);
+    const float moisture_x = static_cast<float>(X) / 90.0f;
+    const float moisture_z = static_cast<float>(Z) / 90.0f;
+    moisture += GLFix(0.2f) * expNegative(GLFix(moisture_x * moisture_x + moisture_z * moisture_z));
 
     // River valleys follow a narrow band in the fourth source noise field.
     const GLFix river = absFix(noise.noise2(3, X / 430 + 50, Z / 430 - 20));
