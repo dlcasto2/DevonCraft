@@ -79,7 +79,7 @@ AbyssalNoise::Anchor ringAnchor(uint32_t seed, uint32_t salt, int min_radius, in
     const uint32_t h = mix32(seed ^ salt);
     const int *d = directions[h & 15u];
     const int distance = min_radius + static_cast<int>((h >> 8) % (max_radius - min_radius + 1));
-    return Anchor{d[0] * distance / 1000, d[1] * distance / 1000, radius};
+    return AbyssalNoise::Anchor{d[0] * distance / 1000, d[1] * distance / 1000, radius};
 }
 
 } // namespace
