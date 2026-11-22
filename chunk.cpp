@@ -616,21 +616,33 @@ void Chunk::generate()
             for(int y = 0; y < SIZE; y++)
             {
                 const int world_y = base_y + y;
-                if(this->y == 0 && y == 0)
+                if(this->y == 0 && y == 0 && !in_abyss)
                 {
                     blocks[x][y][z] = BLOCK_BEDROCK;
                     continue;
                 }
 
-                bool solid = world_y <= height;
-                if(!in_abyss && column.overhang > GLFix(0)
-                    && world_y > height - 4 && world_y < height + 4)
+                bool solid;
+                if(in_abyss)
                 {
-                    const GLFix shape = GLFix(height - world_y) / 8
-                        + abyssal.noise3(0, GLFix(base_x + x) / 34,
-                            GLFix(world_y) / 24, GLFix(base_z + z) / 34)
-                            * column.overhang * GLFix(1.2f);
-                    solid = shape > GLFix(0);
+                    // The source leaves the crater open. Sparse 3D density
+                    // pockets form isolated dark/crystal shelves in the void.
+                    solid = column.abyss_distance < GLFix(-3)
+                        && world_y > 5 && world_y < height - 4
+                        && abyssalVoidPocketAt(abyssal, base_x + x, world_y, base_z + z);
+                }
+                else
+                {
+                    solid = world_y <= height;
+                    if(column.overhang > GLFix(0)
+                        && world_y > height - 5 && world_y < height + 5)
+                    {
+                        const GLFix shape = GLFix(height - world_y) / GLFix(3.3333f)
+                            + abyssal.noise3(0, GLFix(base_x + x) / 34,
+                                GLFix(world_y) / 10, GLFix(base_z + z) / 34)
+                                * column.overhang * GLFix(1.2f);
+                        solid = shape > GLFix(0);
+                    }
                 }
 
                 if(!solid)
@@ -644,15 +656,17 @@ void Chunk::generate()
 
                 const int depth = height - world_y + 1;
                 BLOCK material;
-                if(depth <= 1)
+                const uint32_t accent = columnHash(base_x + x, base_z + z, seed, 0xAB5151u) % 1000;
+                if(in_abyss)
+                    material = depth <= 1 && accent < 180 ? BLOCK_DIAMOND : BLOCK_OBSIDIAN;
+                else if(depth <= 1)
                 {
                     material = surface.top;
-                    const uint32_t accent = columnHash(base_x + x, base_z + z, seed, 0xAB5151u) % 1000;
                     if(biome == Biome::ABYSSAL_CRYSTAL && accent < 65)
                         material = BLOCK_GLOWSTONE;
                     else if(biome == Biome::ABYSSAL_CRYSTAL && accent < 150)
                         material = BLOCK_DIAMOND;
-                    else if((biome == Biome::ABYSSAL_RIM || biome == Biome::ABYSSAL_ABYSS) && accent < 45)
+                    else if(biome == Biome::ABYSSAL_RIM && accent < 45)
                         material = BLOCK_GLOWSTONE;
                     else if(biome == Biome::ABYSSAL_ASHLAND && accent < 70)
                         material = BLOCK_OBSIDIAN;
