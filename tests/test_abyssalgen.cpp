@@ -28,7 +28,9 @@ TEST_CASE("Abyss and Dead Zone landmarks are generated from the world seed") {
     CHECK(pit.height == 4);
 
     const AbyssalColumn wasteland = abyssalColumnAt(noise, dead.x, dead.z);
-    CHECK(wasteland.dead > GLFix(0.5f) || wasteland.biome == Biome::ABYSSAL_DEAD);
+    const bool inside_dead_zone = wasteland.dead > GLFix(0.5f);
+    const bool has_dead_biome = wasteland.biome == Biome::ABYSSAL_DEAD;
+    CHECK(inside_dead_zone || has_dead_biome);
 }
 
 TEST_CASE("Abyssal terrain has multiple elevations and the source biome families") {
