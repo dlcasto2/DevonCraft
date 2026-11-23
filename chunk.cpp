@@ -608,8 +608,7 @@ enum : uint32_t { SALT_TREE = 0x7EE5, SALT_TREE_KIND = 0x4B1D, SALT_TREE_SHAPE =
 
 void Chunk::generate()
 {
-    // BLOCK_WDATA is a three-dimensional array; never form a flat iterator
-    // range across its separate row arrays.
+    // Clear each row independently; flattening the 3D array crosses row subobjects.
     for(int x = 0; x < SIZE; ++x)
         for(int y = 0; y < SIZE; ++y)
             std::fill(blocks[x][y], blocks[x][y] + SIZE, BLOCK_AIR);
@@ -617,122 +616,72 @@ void Chunk::generate()
     debug("Generating chunk %d:%d:%d...\t", x, y, z);
 
     const PerlinNoise &noise = world.noiseGenerator();
-    const AbyssalNoise &abyssal = world.abyssalNoiseGenerator();
     const uint32_t seed = world.worldSeed();
     const int base_x = this->x * SIZE, base_y = this->y * SIZE, base_z = this->z * SIZE;
 
-    // Cache the source-style height/biome fields for this chunk and its rim.
-    AbyssalColumn columns[SIZE + 2][SIZE + 2];
+    // Ground heights of this chunk's columns and the ring around them, for steepness.
     int heights[SIZE + 2][SIZE + 2];
     for(int x = -1; x <= SIZE; x++)
         for(int z = -1; z <= SIZE; z++)
-        {
-            columns[x + 1][z + 1] = abyssalColumnAt(abyssal, base_x + x, base_z + z);
-            heights[x + 1][z + 1] = columns[x + 1][z + 1].height;
-        }
+            heights[x + 1][z + 1] = groundHeight(noise, base_x + x, base_z + z);
 
     Biome biomes[SIZE][SIZE];
 
     for(int x = 0; x < SIZE; x++)
         for(int z = 0; z < SIZE; z++)
         {
-            const AbyssalColumn &column = columns[x + 1][z + 1];
-            const int height = column.height;
-            const Biome biome = biomes[x][z] = column.biome;
+            const int height = heights[x + 1][z + 1];
+
+            // The biome only matters where its surface layers (at most 8 deep)
+            // or its water reach into this chunk.
+            const bool surface_here = height - 8 < base_y + SIZE && std::max(height, SEA_LEVEL) > base_y;
+            const Biome biome = biomes[x][z] = surface_here ? biomeAt(noise, base_x + x, base_z + z) : Biome::PLAINS;
 
             int steepness = 0;
             for(const int h : { heights[x][z + 1], heights[x + 2][z + 1], heights[x + 1][z], heights[x + 1][z + 2] })
                 steepness = std::max(steepness, std::abs(h - height));
 
-            const Surface surface = surfaceFor(biome, height, steepness);
-            const bool in_abyss = column.abyss_distance < GLFix(0);
+            // Seabeds and beaches are sand whatever the biome.
+            const Surface surface = isSandColumn(height) && biome != Biome::DESERT
+                    ? Surface{ BLOCK_SAND, BLOCK_SAND, 4, 0, 0 } : surfaceFor(biome, height, steepness);
 
-            // Generate every vertical slice, not only the column cap, so the
-            // source's 3D overhang field can form lips above and below peaks.
-            for(int y = 0; y < SIZE; y++)
+            const int height_left = height - base_y;
+            const int height_here = std::min(height_left, Chunk::SIZE);
+
+            int y = 0;
+
+            //Bottom layer of lowest chunk is bedrock
+            if(this->y == 0)
+                blocks[x][y++][z] = BLOCK_BEDROCK;
+
+            for(; y < height_here; y++)
             {
-                const int world_y = base_y + y;
-                if(this->y == 0 && y == 0 && !in_abyss)
-                {
-                    blocks[x][y][z] = BLOCK_BEDROCK;
-                    continue;
-                }
-
-                bool solid;
-                if(in_abyss)
-                {
-                    // The source leaves the crater open. Sparse 3D density
-                    // pockets form isolated dark/crystal shelves in the void.
-                    solid = column.abyss_distance < GLFix(-3)
-                        && world_y > 5 && world_y < height - 4
-                        && abyssalVoidPocketAt(abyssal, base_x + x, world_y, base_z + z);
-                }
-                else
-                {
-                    solid = world_y <= height;
-                    if(column.overhang > GLFix(0)
-                        && world_y > height - 5 && world_y < height + 5)
-                    {
-                        const GLFix shape = GLFix(height - world_y) / GLFix(3.3333f)
-                            + abyssal.noise3(0, GLFix(base_x + x) / 34,
-                                GLFix(world_y) / 10, GLFix(base_z + z) / 34)
-                                * column.overhang * GLFix(1.2f);
-                        solid = shape > GLFix(0);
-                    }
-                }
-
-                if(!solid)
-                    continue;
-
-                // Carve the source generator's 3D cave channels, leaving the
-                // topsoil and bedrock intact.
-                if(!in_abyss && world_y > 3 && world_y < height - 3
-                    && abyssalCaveAt(abyssal, base_x + x, world_y, base_z + z))
-                    continue;
-
-                const int depth = height - world_y + 1;
-                BLOCK material;
-                const uint32_t accent = columnHash(base_x + x, base_z + z, seed, 0xAB5151u) % 1000;
-                if(in_abyss)
-                    material = depth <= 1 && accent < 180 ? BLOCK_DIAMOND : BLOCK_OBSIDIAN;
-                else if(depth <= 1)
-                {
-                    material = surface.top;
-                    if(biome == Biome::ABYSSAL_CRYSTAL && accent < 65)
-                        material = BLOCK_GLOWSTONE;
-                    else if(biome == Biome::ABYSSAL_CRYSTAL && accent < 150)
-                        material = BLOCK_DIAMOND;
-                    else if(biome == Biome::ABYSSAL_RIM && accent < 45)
-                        material = BLOCK_GLOWSTONE;
-                    else if(biome == Biome::ABYSSAL_ASHLAND && accent < 70)
-                        material = BLOCK_OBSIDIAN;
-                }
+                const int depth = height_left - y;   // 1 is the top block
+                if(depth == 1)
+                    blocks[x][y][z] = surface.top;
                 else if(depth <= 1 + surface.filler_depth)
-                    material = surface.filler;
+                    blocks[x][y][z] = surface.filler;
                 else if(depth <= 1 + surface.filler_depth + surface.under_depth)
-                    material = surface.under;
+                    blocks[x][y][z] = surface.under;
                 else
-                    material = deepBlock(noise, x, z, this->x, this->z);
-
-                blocks[x][y][z] = material;
+                    blocks[x][y][z] = deepBlock(noise, x, z, this->x, this->z);
             }
 
-            // Ocean and lake water remains at the original water-system level.
-            // The Abyss itself is a dry chasm, not a flooded cave.
-            if(!in_abyss)
-                fillSeaColumn(blocks, x, z, this->y, height,
-                    biome == Biome::ABYSSAL_SNOW || biome == Biome::ICE_PLAINS);
+            // Oceans and lakes: still water from the ground up to sea level,
+            // frozen over in the cold.
+            fillSeaColumn(blocks, x, z, this->y, height, biomeFeatures(biome).frozen_water);
         }
 
+    // Gold, emerald and Ancient Debris (new chunks only: loaded ones skip generate()).
     generateOres(blocks, this->x, this->y, this->z, seed);
 
-    // Existing compact tree shapes are reused for the new biome families.
+    // Trees, flowers, cacti and dead bushes, on columns whose ground is in this chunk.
     int trunks = 0, trunk_x[SIZE * SIZE], trunk_z[SIZE * SIZE];
     for(int x = 0; x < SIZE; x++)
         for(int z = 0; z < SIZE; z++)
         {
             const int height = heights[x + 1][z + 1];
-            const int ground = groundLocalY(height, base_y);
+            const int ground = groundLocalY(height, base_y);    // local y of the top block
             if(ground < 0 || ground >= SIZE || !isDryLand(height))
                 continue;
 
@@ -743,6 +692,7 @@ void Chunk::generate()
 
             if(soil && columnHash(gx, gz, seed, SALT_TREE) % 1000 < f.trees)
             {
+                // Two blocks between trunks at least, so crowns don't merge into one.
                 bool crowded = false;
                 for(int i = 0; i < trunks && !crowded; ++i)
                     crowded = std::abs(trunk_x[i] - x) <= 2 && std::abs(trunk_z[i] - z) <= 2;
@@ -750,8 +700,7 @@ void Chunk::generate()
                 if(!crowded)
                 {
                     const uint32_t roll = columnHash(gx, gz, seed, SALT_TREE_KIND) % 1000;
-                    const TreeKind kind = roll < f.spruce ? TreeKind::SPRUCE
-                        : roll < f.spruce + f.birch ? TreeKind::BIRCH : TreeKind::OAK;
+                    const TreeKind kind = roll < f.spruce ? TreeKind::SPRUCE : roll < f.spruce + f.birch ? TreeKind::BIRCH : TreeKind::OAK;
                     if(placeTree(kind, x, ground + 1, z, columnHash(gx, gz, seed, SALT_TREE_SHAPE)))
                     {
                         trunk_x[trunks] = x;
@@ -762,15 +711,10 @@ void Chunk::generate()
             }
 
             if(top == BLOCK_GRASS && columnHash(gx, gz, seed, SALT_FLOWER) % 1000 < f.flowers)
-                setGlobalBlockRelative(x, ground + 1, z,
-                    getBLOCKWDATA(BLOCK_FLOWER, columnHash(gx, gz, seed, SALT_FLOWER + 1) & 1));
-            else if((top == BLOCK_SAND || biomes[x][z] == Biome::ABYSSAL_DEAD
-                        || biomes[x][z] == Biome::ABYSSAL_ASHLAND)
-                    && columnHash(gx, gz, seed, SALT_BUSH) % 1000 < f.dead_bushes)
-                setGlobalBlockRelative(x, ground + 1, z,
-                    getBLOCKWDATA(BLOCK_FLOWER, FLOWER_DEAD_BUSH));
+                setGlobalBlockRelative(x, ground + 1, z, getBLOCKWDATA(BLOCK_FLOWER, columnHash(gx, gz, seed, SALT_FLOWER + 1) & 1));
             else if(top == BLOCK_SAND && columnHash(gx, gz, seed, SALT_CACTUS) % 1000 < f.cacti)
             {
+                // Cacti stand alone: nothing beside them at any height.
                 bool open = true;
                 for(const int h : { heights[x][z + 1], heights[x + 2][z + 1], heights[x + 1][z], heights[x + 1][z + 2] })
                     open = open && h <= height;
@@ -778,6 +722,8 @@ void Chunk::generate()
                 for(int i = 0; open && i < tall; ++i)
                     setGlobalBlockRelative(x, ground + 1 + i, z, BLOCK_CACTUS);
             }
+            else if(top == BLOCK_SAND && columnHash(gx, gz, seed, SALT_BUSH) % 1000 < f.dead_bushes)
+                setGlobalBlockRelative(x, ground + 1, z, getBLOCKWDATA(BLOCK_FLOWER, FLOWER_DEAD_BUSH));
         }
 
     debug("Done!\n");

@@ -12,7 +12,7 @@
 
 World world;
 
-World::World() : perlin_noise(0), abyssal_noise(0), seed(0)
+World::World() : perlin_noise(0), seed(0)
 {
     generateSeed();
 }
@@ -30,7 +30,6 @@ void World::generateSeed()
     seed = platformRtcSeconds() ^ 0x9E3779B9u;
     printf("Seed: %u\n", seed);
     perlin_noise.setSeed(seed);
-    abyssal_noise.setSeed(seed);
 }
 
 constexpr int getLocal(const int global)
@@ -214,10 +213,6 @@ const PerlinNoise &World::noiseGenerator() const
     return perlin_noise;
 }
 
-const AbyssalNoise &World::abyssalNoiseGenerator() const
-{
-    return abyssal_noise;
-}
 
 void World::clear()
 {
@@ -252,7 +247,6 @@ bool World::loadFromFile(gzFile file)
 
     LOAD_FROM_FILE(seed)
     perlin_noise.setSeed(seed);
-    abyssal_noise.setSeed(seed);
 
     unsigned int block_changes;
     LOAD_FROM_FILE(block_changes)
