@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
             const LoadResult fixture_result = Task::load();
             if(fixture_result != LoadResult::OK)
             {
-                printf("fixture-load-FAIL\\n");
+                printf("fixture-load-FAIL\n");
                 return 1;
             }
             world_task.makeCurrent();
