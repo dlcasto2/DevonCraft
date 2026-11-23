@@ -85,7 +85,7 @@ void drawBootUi(TEXTURE &dst, const char *status, unsigned int progress, bool mo
     fillRect(dst, 0, 74, SCREEN_WIDTH, 80, sky2);
 
     // Sparse, fixed stars keep the splash crisp and inexpensive on the calculator.
-    static const uint8_t stars[][2] = {
+    static const unsigned short stars[][2] = {
         {18,18},{47,36},{82,16},{119,29},{157,14},{204,31},{239,18},{286,34},
         {302,13},{30,72},{73,61},{108,83},{211,66},{264,76},{296,91},{14,112},
         {51,101},{91,118},{228,108},{276,122},{185,91},{143,103}
