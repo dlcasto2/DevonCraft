@@ -7,7 +7,7 @@
 // sunrise at 0, noon at 6000, sunset at 12000, midnight at 18000.
 
 constexpr uint32_t DAY_TICKS = 24000;
-constexpr int NIGHT_BRIGHTNESS_LEVEL = 3;   // nights are dim, not black
+constexpr int NIGHT_BRIGHTNESS_LEVEL = 4;   // brighter nights: 5/8 texture brightness
 
 // 256 in full daylight, 0 at night, fading over dusk (12000-13800)
 // and dawn (22200-24000).
