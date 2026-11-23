@@ -547,7 +547,8 @@ bool NormalBlockRenderer::shouldRenderFaceAndItsTheSameAs(const int local_x, con
 void NormalBlockRenderer::geometryNormalBlock(const BLOCK_WDATA block, const int local_x, const int local_y, const int local_z, const BLOCK_SIDE side, Chunk &c)
 {
     //If there isn't a prerendered quad texture for this block, skip it
-    if(quad_block_textures[getBLOCK(block)][side].has_quad)
+    // Top faces use the canonical atlas directly; this avoids stale or blank top cells in the quad copy.
+    if(side != BLOCK_TOP && quad_block_textures[getBLOCK(block)][side].has_quad)
     {
         switch(side)
         {

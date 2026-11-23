@@ -169,9 +169,22 @@ static bool isCompatibleTerrainAtlas(const TEXTURE &texture)
 
     // The block atlas is a 16x16 grid of square cells. Reject truncated,
     // undersized, or mismatched external atlases before any cell indexing.
-    return width >= 48 && height >= 48
-        && width % 16 == 0 && height % 16 == 0
-        && cell_width == cell_height;
+    if(width < 48 || height < 48 || width % 16 != 0 || height % 16 != 0
+       || cell_width != cell_height)
+        return false;
+
+    // Dimensions alone do not prove that the file uses DevonCraft's atlas
+    // layout. These core cells must contain visible pixels: grass top/side,
+    // stone, dirt, and sand. Older or mismatched PPM files can have blank
+    // cells at these coordinates while still being a valid 512x512 image.
+    const unsigned int core_cells[][2] = {
+        {0, 0}, {3, 0}, {1, 0}, {2, 0}, {2, 1}
+    };
+    for(const auto &cell : core_cells)
+        if(!textureAtlasCellHasVisibleContent(texture, cell[0], cell[1]))
+            return false;
+
+    return true;
 }
 
 void terrainInit(const char *texture_path)

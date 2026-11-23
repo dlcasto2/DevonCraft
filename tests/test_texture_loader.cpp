@@ -1,5 +1,6 @@
 #include "doctest.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
@@ -59,6 +60,27 @@ TEST_CASE("complete binary PPM textures still load")
     CHECK(loaded->height == 1);
     deleteTexture(loaded);
     unlink(path);
+}
+
+TEST_CASE("blank atlas cells are rejected")
+{
+    TEXTURE *texture = newTexture(32, 32, 0, true, 0);
+    REQUIRE(texture != nullptr);
+
+    CHECK_FALSE(textureAtlasCellHasVisibleContent(*texture, 0, 0));
+    CHECK_FALSE(textureAtlasCellHasVisibleContent(*texture, 16, 0));
+    deleteTexture(texture);
+}
+
+TEST_CASE("visible atlas cells pass validation")
+{
+    TEXTURE *texture = newTexture(32, 32, 0, true, 0);
+    REQUIRE(texture != nullptr);
+    std::fill(texture->bitmap, texture->bitmap + 32 * 32, static_cast<COLOR>(0x07E0));
+
+    CHECK(textureAtlasCellHasVisibleContent(*texture, 0, 0));
+    CHECK_FALSE(textureAtlasCellHasVisibleContent(*texture, 0, 0, 0, 16));
+    deleteTexture(texture);
 }
 
 TEST_CASE("oversized binary PPM dimensions are rejected before allocation")

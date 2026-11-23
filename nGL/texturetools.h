@@ -35,5 +35,7 @@ struct TextureAtlasEntry
 };
 
 TextureAtlasEntry textureArea(const unsigned int x, const unsigned int y, const unsigned int w, const unsigned int h);
+// True when an atlas cell contains substantial opaque, visible pixel data.
+bool textureAtlasCellHasVisibleContent(const TEXTURE &texture, unsigned int cell_x, unsigned int cell_y, unsigned int columns = 16, unsigned int rows = 16);
 
 #endif // TEXTURETOOLS_H
