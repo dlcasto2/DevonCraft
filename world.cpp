@@ -107,8 +107,6 @@ void World::setPosition(int x, int y, int z)
 
     if(!loaded || (chunk_x != cen_x || chunk_y != cen_y || chunk_z != cen_z))
     {
-        visible_chunks.clear();
-
         // The original monochrome CAS has a much tighter memory budget than
         // CX hardware. Keep its active radius bounded even when Low graphics
         // is switched off; this prevents large synchronous startup allocations.
@@ -121,6 +119,19 @@ void World::setPosition(int x, int y, int z)
         // This avoids worse graphics and bad possibly collision issues.
         if(distsq == 1)
             distsq = 3;
+
+        // Release derived geometry only for chunks that leave the next active
+        // region. Their block arrays remain resident so all world edits survive.
+        for(Chunk *old_chunk : visible_chunks)
+        {
+            const int dx = old_chunk->x - chunk_x;
+            const int dy = old_chunk->y - chunk_y;
+            const int dz = old_chunk->z - chunk_z;
+            if(dx*dx + dy*dy + dz*dz > distsq
+               || old_chunk->y < 0 || old_chunk->y >= World::HEIGHT)
+                old_chunk->releaseGeometry();
+        }
+        visible_chunks.clear();
 
         bool all_chunks_ready = true;
         for(int x = -dist; x <= dist; ++x)
