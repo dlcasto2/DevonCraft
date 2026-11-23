@@ -1,7 +1,6 @@
 #include "drops.h"
 
 #include "terrain.h"
-#include "progression.h"
 
 namespace {
 
@@ -57,11 +56,7 @@ bool spawnDrop(EntityPool &pool, GLFix cx, GLFix cy, GLFix cz, ItemStack s, Play
         }
     }
 
-    const unsigned count = s.count;
-    const bool stored = overflow.add(s) == 0;
-    if(stored)
-        progressionItemAcquired(s.id, count);
-    return stored;
+    return overflow.add(s) == 0;
 }
 
 void collectDrops(EntityPool &pool, const AABB &player, PlayerInventory &inv)
@@ -75,11 +70,7 @@ void collectDrops(EntityPool &pool, const AABB &player, PlayerInventory &inv)
     pool.forEach([&](Entity &e) {
         if(e.type != EntityType::DROPPED_ITEM || e.age_ticks < PICKUP_DELAY_TICKS || !reach.intersects(e.box))
             return;
-        const ItemId id = e.item.id;
-        const unsigned before = e.item.count;
         const unsigned left = inv.add(e.item);
-        if(before > left)
-            progressionItemAcquired(id, before - left);
         if(left == 0)
             pool.remove(&e);
         else
@@ -151,11 +142,7 @@ void collectPiles(EntityPool &pool, ItemPileStore &piles, const AABB &player, Pl
         {
             if(s.empty())
                 continue;
-            const ItemId id = s.id;
-            const unsigned before = s.count;
             const unsigned left = inv.add(s);
-            if(before > left)
-                progressionItemAcquired(id, before - left);
             if(left == 0)
                 s = ItemStack();
             else

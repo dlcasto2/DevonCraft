@@ -14,8 +14,6 @@ public:
         LOAD_WORLD,
         SAVE_WORLD,
         SETTINGS,
-        ACHIEVEMENTS,
-        ADVANCEMENTS,
         EXIT,
         HELP,
         MENU_ITEM_MAX

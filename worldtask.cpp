@@ -10,7 +10,6 @@
 #include "lighting.h"
 #include "blockdefs.h"
 #include "gamestate.h"
-#include "progression.h"
 #include "furnace.h"
 #include "furnacescreen.h"
 #include "daylight.h"
@@ -268,12 +267,7 @@ void WorldTask::logic()
         if(getBLOCK(block_to_place) == BLOCK_BED)
         {
             if(placeBed(static_cast<int>(pos.x), static_cast<int>(pos.y), static_cast<int>(pos.z)))
-            {
                 useOne();
-                progressionBlockPlaced(BLOCK_BED);
-                if(const char *notice = takeProgressNotice())
-                    setMessage(notice);
-            }
             return;
         }
 
@@ -317,9 +311,6 @@ void WorldTask::logic()
                 else if(getBLOCK(block_to_place) == BLOCK_FURNACE)
                     furnacePlaced(static_cast<int>(pos.x), static_cast<int>(pos.y), static_cast<int>(pos.z));
                 useOne();
-                progressionBlockPlaced(getBLOCK(block_to_place));
-                if(const char *notice = takeProgressNotice())
-                    setMessage(notice);
             }
         }
     }
@@ -370,9 +361,6 @@ void WorldTask::logic()
         }
         else
         {
-            progressionInventoryOpened();
-            if(const char *notice = takeProgressNotice())
-                setMessage(notice);
             draw_inventory = false;
             render();
             draw_inventory = true;
@@ -453,8 +441,6 @@ void WorldTask::tick()
         mining = MiningState();
     collectDrops(entity_pool, box, player_inventory);
     collectPiles(entity_pool, item_piles, box, player_inventory);
-    if(const char *notice = takeProgressNotice())
-        setMessage(notice);
     removeExpiredPiles(entity_pool, item_piles);
     tickFurnaces();
 
@@ -838,7 +824,6 @@ void WorldTask::tickMining(bool on_ground)
     // 1.8.8 order: work out the drop, clear the block, drop it, then wear the tool,
     // so a tool that breaks on its last block still gives that block.
     const ItemStack drop = blockDropFor(target, tool, drop_rng);
-    progressionBlockMined(getBLOCK(target));
     removeBlock(bx, by, bz, target);
 
     // Ice (1.8.8) melts into water, unless there's nothing under it to hold it.
@@ -852,8 +837,6 @@ void WorldTask::tickMining(bool on_ground)
     spawnDrop(entity_pool, GLFix(bx * BLOCK_SIZE + BLOCK_SIZE / 2), GLFix(by * BLOCK_SIZE + BLOCK_SIZE / 2),
               GLFix(bz * BLOCK_SIZE + BLOCK_SIZE / 2), drop, player_inventory);
     wearTool(held, toolWearFor(tool, target));
-    if(const char *notice = takeProgressNotice())
-        setMessage(notice);
 }
 
 void WorldTask::render()
@@ -1035,7 +1018,6 @@ void WorldTask::resetWorld()
     world.generateSeed();
     world.clear();
     current_inventory.resetToDefaults();
-    resetProgress();
     // Nothing from the previous world carries over.
     block_storage.clear();
     item_piles.clear();

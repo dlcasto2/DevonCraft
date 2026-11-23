@@ -5,6 +5,7 @@
 #include "terrain.h"
 class SaveReader;
 class SaveWriter;
+class PlayerInventory;
 enum AchievementId : uint8_t {
  ACH_TAKING_INVENTORY = 0, ACH_GETTING_WOOD, ACH_BENCHMARKING, ACH_TIME_TO_MINE,
  ACH_HOT_TOPIC, ACH_ACQUIRE_HARDWARE, ACH_DIAMONDS, ACH_SWEET_DREAMS, ACH_ARCHITECT,
@@ -35,6 +36,7 @@ unsigned unlockedAdvancementCount();
 void resetProgress();
 void progressionInventoryOpened();
 void progressionItemAcquired(ItemId id, unsigned count = 1);
+void progressionInventoryDelta(const PlayerInventory &before, const PlayerInventory &after);
 void progressionCrafted(ItemId id, unsigned count = 1);
 void progressionBlockMined(BLOCK block);
 void progressionBlockPlaced(BLOCK block);

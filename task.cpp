@@ -12,7 +12,6 @@
 #include "itempile.h"
 #include "drops.h"
 #include "entity.h"
-#include "progression.h"
 
 //The values have to stay somewhere
 Task *Task::current_task;
@@ -83,7 +82,7 @@ void Task::drawBackground()
  * Version 6 (d52f3992): BLOCK_SIZE changed from 120 to 128,
  *                       gzip compression introduced shortly afterwards
  */
-static constexpr int savefile_version = 8;
+static constexpr int savefile_version = 7;
 
 #define LOAD_FROM_FILE(var) if(gzfread(&var, sizeof(var), 1, file) != 1) { gzclose(file); return false; }
 #define SAVE_TO_FILE(var) if(gzfwrite(&var, sizeof(var), 1, file) != 1) { gzclose(file); return false; }
@@ -101,16 +100,14 @@ static LoadResult loadUnchecked()
         return LoadResult::UNREADABLE;
     }
 
-    static_assert(savefile_version == 8, "Adjust loading code for backward compatibility");
+    static_assert(savefile_version == 7, "Adjust loading code for backward compatibility");
 
-    if(version < 4 || version > 8)
+    if(version < 4 || version > 7)
     {
         printf("Save file version %d not supported!\n", version);
         gzclose(file);
         return LoadResult::UNREADABLE;
     }
-
-    resetProgress();
 
     #define LOAD_OR_FAIL(var) if(gzfread(&var, sizeof(var), 1, file) != 1) { gzclose(file); return LoadResult::UNREADABLE; }
 
@@ -142,7 +139,7 @@ static LoadResult loadUnchecked()
         block_storage.clear();
         item_piles.clear();
     }
-    else // versions 7 and 8
+    else // version 7
     {
         LOAD_OR_FAIL(world_task.x)
         LOAD_OR_FAIL(world_task.y)
@@ -152,11 +149,6 @@ static LoadResult loadUnchecked()
 
         SaveReader reader(file);
         if(!readSurvivalSection(reader))
-        {
-            gzclose(file);
-            return LoadResult::UNREADABLE;
-        }
-        if(version >= 8 && !readProgressSection(reader))
         {
             gzclose(file);
             return LoadResult::UNREADABLE;
@@ -198,7 +190,6 @@ LoadResult Task::load()
         // state before main() creates the replacement .new world.
         player_state = PlayerState();
         world_state = WorldState();
-        resetProgress();
         settings_task.resetToDefaults();
         block_list_task.current_selection = 0;
         world_task.resetWorld();
@@ -226,7 +217,7 @@ bool Task::save()
         #undef SAVE_OR_FAIL
 
         SaveWriter writer(file);
-        if(!writeSurvivalSection(writer) || !writeProgressSection(writer))
+        if(!writeSurvivalSection(writer))
             return false;
 
         if(gzfwrite(&block_list_task.current_selection, sizeof(block_list_task.current_selection), 1, file) != 1)

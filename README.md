@@ -49,8 +49,7 @@ What's new so far
 - **Passive mobs:** Pigs and cows spawn on grass in daylight, wander slowly, despawn when far from the player, and drop raw pork or beef after five bare-hand hits. Mobs use original low-poly 3D cuboid models and a dedicated 16x16-tile pixel-art texture atlas; mob entities are transient and are not saved.
 - **Game clock:** fixed 20 ticks per second, independent of frame rate.
 - **Entities:** up to 32 entities with physics and collision.
-- **Achievements and advancements:** persistent unlocks for inventory, gathering wood, crafting, mining stone, tools, furnaces, iron, diamonds, beds and building. Open either screen from the game menu. Advancement criteria can be met early and complete automatically once their parent is unlocked.
-- **Saves:** new save format (v8) with an automatic backup. Existing v7 worlds and older v6 worlds still load; existing worlds start with empty progression.
+- **Saves:** new save format (v7) with an automatic backup. An unreadable save is never overwritten, and old v6 worlds still load (in creative mode).
 - **Lighting:** 8 brightness levels for the coming day/night cycle.
 - **Auto-jump:** walks you up one-block steps.
 - **Mining:** hold 9 to break blocks at 1.8.8 speeds. Tools have tiers and wear out, and blocks drop items you walk over to collect.
@@ -105,7 +104,6 @@ Controls
 | enter | | Send a stack to the other section / on the result slot or in the recipe list, craft as many as you can |
 | tab | | Switch between the slots and the recipe list |
 | menu | Game menu | Back |
-| 8 / 2 | | Move through achievements or advancements |
 | esc | Save and quit | Close |
 | + / - | View distance | |
 | ctrl + . | Screenshot | |

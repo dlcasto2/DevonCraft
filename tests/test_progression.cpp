@@ -66,6 +66,9 @@ TEST_CASE("progression unlock notices are consumed once") {
     const char *notice = takeProgressNotice();
     REQUIRE(notice != nullptr);
     CHECK(std::strstr(notice, "Achievement") != nullptr);
+    const char *advancement_notice = takeProgressNotice();
+    REQUIRE(advancement_notice != nullptr);
+    CHECK(std::strstr(advancement_notice, "Advancement") != nullptr);
     CHECK(takeProgressNotice() == nullptr);
 }
 

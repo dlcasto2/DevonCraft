@@ -1,6 +1,7 @@
 #include "progression.h"
 #include <cstdio>
 #include "saveio.h"
+#include "playerinventory.h"
 
 ProgressState progress_state;
 namespace {
@@ -31,14 +32,15 @@ const int8_t parents[ADVANCEMENT_COUNT] = {
  -1, ADV_ROOT, ADV_GETTING_WOOD, ADV_GETTING_WOOD, ADV_STONE_AGE,
  ADV_BENCHMARKING, ADV_HOT_TOPIC, ADV_ACQUIRE_HARDWARE, ADV_GETTING_WOOD, ADV_GETTING_WOOD
 };
-char notice[48];
-bool notice_pending = false;
+char notices[16][48];
+unsigned notice_read = 0, notice_count = 0;
 uint32_t bit(unsigned i) { return static_cast<uint32_t>(1u) << i; }
 uint32_t validMask(unsigned n) { return bit(n) - 1u; }
 void queueNotice(const char *kind, const char *name) {
- if(notice_pending) return;
- std::snprintf(notice,sizeof(notice),"%s: %.30s",kind,name);
- notice_pending=true;
+ if(notice_count >= 16) return;
+ const unsigned write = (notice_read + notice_count) % 16;
+ std::snprintf(notices[write],sizeof(notices[write]),"%s: %.30s",kind,name);
+ ++notice_count;
 }
 void setAchievement(AchievementId id) {
  const unsigned i=static_cast<unsigned>(id);
@@ -80,7 +82,7 @@ bool advancementUnlocked(AdvancementId id){unsigned i=static_cast<unsigned>(id);
 bool advancementCriterionMet(AdvancementId id){unsigned i=static_cast<unsigned>(id);return i<ADVANCEMENT_COUNT && (progress_state.advancement_criteria&bit(i));}
 unsigned unlockedAchievementCount(){unsigned n=0;for(unsigned i=0;i<ACHIEVEMENT_COUNT;++i)n+=(progress_state.achievement_bits&bit(i))!=0;return n;}
 unsigned unlockedAdvancementCount(){unsigned n=0;for(unsigned i=0;i<ADVANCEMENT_COUNT;++i)n+=(progress_state.advancement_bits&bit(i))!=0;return n;}
-void resetProgress(){progress_state=ProgressState();notice_pending=false;notice[0]='\0';}
+void resetProgress(){progress_state=ProgressState();notice_read=notice_count=0;notices[0][0]=0;}
 void progressionInventoryOpened(){setAchievement(ACH_TAKING_INVENTORY);setCriterion(ADV_ROOT);evaluateAdvancements();}
 void progressionItemAcquired(ItemId id,unsigned count) {
  if(!count)return;
@@ -92,6 +94,17 @@ void progressionItemAcquired(ItemId id,unsigned count) {
   setAchievement(ACH_DIAMONDS);setCriterion(ADV_DIAMONDS);
  }
  evaluateAdvancements();
+}
+void progressionInventoryDelta(const PlayerInventory &before, const PlayerInventory &after)
+{
+    const ItemId tracked[] = { BLOCK_WOOD, BLOCK_SPRUCE_LOG, BLOCK_BIRCH_LOG, ITEM_IRON_INGOT, ITEM_DIAMOND };
+    for(ItemId id : tracked)
+    {
+        const unsigned old_count = before.count(id, 0);
+        const unsigned new_count = after.count(id, 0);
+        if(new_count > old_count)
+            progressionItemAcquired(id, new_count - old_count);
+    }
 }
 void progressionCrafted(ItemId id,unsigned count) {
  if(!count)return;
@@ -109,7 +122,7 @@ void progressionBlockPlaced(BLOCK) {
  if(progress_state.blocks_placed>=100){setAchievement(ACH_ARCHITECT);setCriterion(ADV_ARCHITECT);}
  evaluateAdvancements();
 }
-const char *takeProgressNotice(){if(!notice_pending)return nullptr;notice_pending=false;return notice;}
+const char *takeProgressNotice(){if(!notice_count)return nullptr;const char *result=notices[notice_read];notice_read=(notice_read+1)%16;--notice_count;return result;}
 bool writeProgressSection(SaveWriter &w) {
  return w.u32(progress_state.achievement_bits)&&w.u32(progress_state.advancement_bits)
   &&w.u32(progress_state.advancement_criteria)&&w.u16(progress_state.blocks_placed);
@@ -119,5 +132,5 @@ bool readProgressSection(SaveReader &r) {
  if(!r.u32(p.achievement_bits)||!r.u32(p.advancement_bits)||!r.u32(p.advancement_criteria)||!r.u16(p.blocks_placed))return false;
  if((p.achievement_bits&~validMask(ACHIEVEMENT_COUNT))||(p.advancement_bits&~validMask(ADVANCEMENT_COUNT))
    ||(p.advancement_criteria&~validMask(ADVANCEMENT_COUNT))||p.blocks_placed>100)return false;
- progress_state=p;notice_pending=false;notice[0]='\0';return true;
+ progress_state=p;notice_read=notice_count=0;notices[0][0]=0;return true;
 }
