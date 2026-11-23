@@ -60,6 +60,15 @@ TEST_CASE("failed atomic rename never deletes the existing save") {
     CHECK(readSaveVersion("/tmp/r.map.tmp.tns") == 8);
     remove("/tmp/r.map.tns"); remove("/tmp/r.map.tmp.tns");
 }
+TEST_CASE("failed legacy replacement keeps the old save and its backup") {
+    putV6("/tmp/l.map.tns"); remove("/tmp/l.map.bak.tns"); remove("/tmp/l.map.tmp.tns");
+    CHECK_FALSE(replaceSaveSafely("/tmp/l.map.tns", writeV8, nullptr, denyRename));
+    CHECK(readSaveVersion("/tmp/l.map.tns") == 6);
+    CHECK(readSaveVersion("/tmp/l.map.bak.tns") == 6);
+    CHECK(readSaveVersion("/tmp/l.map.tmp.tns") == 8);
+    remove("/tmp/l.map.tns"); remove("/tmp/l.map.bak.tns"); remove("/tmp/l.map.tmp.tns");
+}
+
 TEST_CASE("survival section rejects an out-of-range hotbar selection") {
     player_state = PlayerState(); world_state = WorldState();
     player_inventory.clear(); player_inventory.selected = 200;
