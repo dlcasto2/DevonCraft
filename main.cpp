@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
             const LoadResult load_result = Task::load();
             if(verify_fixture && load_result != LoadResult::OK)
             {
-                printf("fixture-load-FAIL\\n");
+                printf("fixture-load-FAIL\n");
                 return 1;
             }
             if(load_result == LoadResult::UNREADABLE)
