@@ -7,6 +7,7 @@
 #include "worldtask.h"
 #include "achievementstask.h"
 #include "advancementstask.h"
+#include "worldloadertask.h"
 
 MenuTask menu_task;
 
@@ -85,16 +86,11 @@ void MenuTask::logic()
         switch(menu_selected_item)
         {
         case NEW_WORLD:
-            world_task.resetWorld();
-            world_task.makeCurrent();
+            world_loader_task.open(WorldLoaderMode::CREATE);
             break;
 
         case LOAD_WORLD:
-            if(load() == LoadResult::OK)
-                world_task.setMessage("World loaded.");
-            else
-                world_task.setMessage("World failed to load.");
-            world_task.makeCurrent();
+            world_loader_task.open(WorldLoaderMode::LOAD);
             break;
 
         case SAVE_WORLD:

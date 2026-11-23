@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "gl.h"
 #include "terrain.h"
@@ -15,6 +16,8 @@
 #include "playerinventory.h"
 
 #include "textures/loading.h"
+#include "worldloadertask.h"
+#include "bootui.h"
 
 int main(int argc, char *argv[])
 {
@@ -26,9 +29,13 @@ int main(int argc, char *argv[])
     #endif
 
     nglInit();
-    if(lcd_type() == SCR_320x240_4)
+    const bool mono_display = lcd_type() == SCR_320x240_4;
+    if(mono_display)
         greyscaleTexture(loading);
+
+    // Draw the branded splash before loading the large terrain atlas.
     nglSetBuffer(loading.bitmap);
+    drawBootUi(loading, "Starting DevonCraft...", 8, mono_display);
     nglDisplay();
 
     //Early exit #1
@@ -43,7 +50,16 @@ int main(int argc, char *argv[])
     // Keep compatibility with an external texture atlas installed under the old name.
     if(access(texture_path, R_OK) != 0 && access("/documents/ndless/crafti.ppm.tns", R_OK) == 0)
         texture_path = "/documents/ndless/crafti.ppm.tns";
+    drawBootUi(loading, "Loading terrain textures...", 28, mono_display);
+    nglSetBuffer(loading.bitmap);
+    nglDisplay();
+
     terrainInit(texture_path);
+
+    drawBootUi(loading, "Preparing lighting...", 64, mono_display);
+    nglSetBuffer(loading.bitmap);
+    nglDisplay();
+
     lightingInit();
     glBindTexture(terrain_current);
 
@@ -62,47 +78,54 @@ int main(int argc, char *argv[])
     // If only an old Crafti save exists, load it in place instead of overwriting or
     // silently moving it; users can keep playing without losing their existing world.
     const char *default_save_path = "/documents/ndless/devoncraft.map.tns";
-    bool using_legacy_save = false;
     if(argc <= 1 && access(default_save_path, F_OK) != 0
        && access("/documents/ndless/crafti.map.tns", F_OK) == 0)
     {
         default_save_path = "/documents/ndless/crafti.map.tns";
-        using_legacy_save = true;
     }
     Task::initializeGlobals(argc > 1 ? argv[1] : default_save_path);
 
     current_inventory.resetToDefaults();
 
-    const LoadResult load_result = Task::load();
-    switch(load_result)
-    {
-    case LoadResult::OK:
-        world_task.setMessage(using_legacy_save ? "Legacy world loaded." : "World loaded.");
-        break;
-    case LoadResult::MISSING:
-        break;
-    case LoadResult::UNREADABLE:
-    {
-        // Task::load() has already discarded any partially decoded global state.
-        // Never overwrite an unreadable save: switch to the .new path.
-        // Static so the string outlives every later use of Task::savefile.
-        // (strdup is POSIX and hidden by -std=c++11 on the calculator.)
-        static std::string fallback_savefile;
-        fallback_savefile = chooseSavePath(Task::savefile, load_result);
-        Task::savefile = fallback_savefile.c_str();
-        world_task.setMessage("Save unreadable - kept. New world in .new");
-        break;
-    }
-    }
-
-
     #ifndef _TINSPIRE
         const bool verify_fixture = getenv("DEVONCRAFT_VERIFY_FIXTURE") != nullptr;
         const bool save_on_exit = getenv("DEVONCRAFT_SAVE_ON_EXIT") != nullptr;
+        const char *max_frames_env = getenv("DEVONCRAFT_MAX_FRAMES");
+        const bool headless_load = verify_fixture || save_on_exit || max_frames_env != nullptr;
     #endif
 
-    //Start with WorldTask as current task
-    world_task.makeCurrent();
+    // Keep environment-driven test runs on the direct-load path. In particular,
+    // SAVE_ON_EXIT must never serialize an uninitialized world over an existing save.
+    #ifndef _TINSPIRE
+        if(headless_load)
+        {
+            const LoadResult load_result = Task::load();
+            if(verify_fixture && load_result != LoadResult::OK)
+            {
+                printf("fixture-load-FAIL\n");
+                return 1;
+            }
+            if(load_result == LoadResult::UNREADABLE)
+            {
+                // Keep the unreadable file intact and direct any later save to a
+                // separate recovery path whose storage outlives main's stack.
+                static std::string recovery_savefile;
+                recovery_savefile = chooseSavePath(Task::savefile, load_result);
+                Task::savefile = recovery_savefile.c_str();
+            }
+            world_task.makeCurrent();
+        }
+        else
+    #endif
+        {
+            // Choose a save slot before entering the game. Slot 1 keeps the
+            // historical DevonCraft/Crafti save path; seven more slots are available.
+            world_loader_task.setPrimaryPath(Task::savefile);
+            world_loader_task.open(WorldLoaderMode::STARTUP);
+        }
+
+    drawBootUi(*Task::screen, "World manager ready", 94, mono_display);
+    nglDisplay();
 
     platformTimeInit();
     GameClock game_clock(platformTickRate());
@@ -115,7 +138,6 @@ int main(int argc, char *argv[])
 
     #ifndef _TINSPIRE
         // Headless runs: stop after DEVONCRAFT_MAX_FRAMES frames, without saving.
-        const char *max_frames_env = getenv("DEVONCRAFT_MAX_FRAMES");
         const unsigned long max_frames = max_frames_env ? strtoul(max_frames_env, nullptr, 10) : 0;
         unsigned long frames_run = 0;
     #endif
