@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 #include "gl.h"
 #include "terrain.h"
@@ -16,6 +17,7 @@
 
 #include "textures/loading.h"
 #include "worldloadertask.h"
+#include "bootui.h"
 
 int main(int argc, char *argv[])
 {
@@ -27,9 +29,13 @@ int main(int argc, char *argv[])
     #endif
 
     nglInit();
-    if(lcd_type() == SCR_320x240_4)
+    const bool mono_display = lcd_type() == SCR_320x240_4;
+    if(mono_display)
         greyscaleTexture(loading);
+
+    // Draw the branded splash before loading the large terrain atlas.
     nglSetBuffer(loading.bitmap);
+    drawBootUi(loading, "Starting DevonCraft...", 8, mono_display);
     nglDisplay();
 
     //Early exit #1
@@ -44,7 +50,16 @@ int main(int argc, char *argv[])
     // Keep compatibility with an external texture atlas installed under the old name.
     if(access(texture_path, R_OK) != 0 && access("/documents/ndless/crafti.ppm.tns", R_OK) == 0)
         texture_path = "/documents/ndless/crafti.ppm.tns";
+    drawBootUi(loading, "Loading terrain textures...", 28, mono_display);
+    nglSetBuffer(loading.bitmap);
+    nglDisplay();
+
     terrainInit(texture_path);
+
+    drawBootUi(loading, "Preparing lighting...", 64, mono_display);
+    nglSetBuffer(loading.bitmap);
+    nglDisplay();
+
     lightingInit();
     glBindTexture(terrain_current);
 
@@ -75,18 +90,28 @@ int main(int argc, char *argv[])
     #ifndef _TINSPIRE
         const bool verify_fixture = getenv("DEVONCRAFT_VERIFY_FIXTURE") != nullptr;
         const bool save_on_exit = getenv("DEVONCRAFT_SAVE_ON_EXIT") != nullptr;
+        const char *max_frames_env = getenv("DEVONCRAFT_MAX_FRAMES");
+        const bool headless_load = verify_fixture || save_on_exit || max_frames_env != nullptr;
     #endif
 
-    // The fixture verifier is a headless test path: retain direct loading so
-    // automated fixture checks do not need to navigate the on-device selector.
+    // Keep environment-driven test runs on the direct-load path. In particular,
+    // SAVE_ON_EXIT must never serialize an uninitialized world over an existing save.
     #ifndef _TINSPIRE
-        if(verify_fixture)
+        if(headless_load)
         {
-            const LoadResult fixture_result = Task::load();
-            if(fixture_result != LoadResult::OK)
+            const LoadResult load_result = Task::load();
+            if(verify_fixture && load_result != LoadResult::OK)
             {
-                printf("fixture-load-FAIL\n");
+                printf("fixture-load-FAIL\\n");
                 return 1;
+            }
+            if(load_result == LoadResult::UNREADABLE)
+            {
+                // Keep the unreadable file intact and direct any later save to a
+                // separate recovery path whose storage outlives main's stack.
+                static std::string recovery_savefile;
+                recovery_savefile = chooseSavePath(Task::savefile, load_result);
+                Task::savefile = recovery_savefile.c_str();
             }
             world_task.makeCurrent();
         }
@@ -99,6 +124,9 @@ int main(int argc, char *argv[])
             world_loader_task.open(WorldLoaderMode::STARTUP);
         }
 
+    drawBootUi(*Task::screen, "World manager ready", 94, mono_display);
+    nglDisplay();
+
     platformTimeInit();
     GameClock game_clock(platformTickRate());
     game_clock.reset(platformTicks());
@@ -110,7 +138,6 @@ int main(int argc, char *argv[])
 
     #ifndef _TINSPIRE
         // Headless runs: stop after DEVONCRAFT_MAX_FRAMES frames, without saving.
-        const char *max_frames_env = getenv("DEVONCRAFT_MAX_FRAMES");
         const unsigned long max_frames = max_frames_env ? strtoul(max_frames_env, nullptr, 10) : 0;
         unsigned long frames_run = 0;
     #endif

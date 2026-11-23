@@ -119,6 +119,8 @@ void WorldLoaderTask::goBack()
 {
     if(mode == WorldLoaderMode::STARTUP)
         running = false;
+    else if(!has_active_world)
+        showStatus("Choose a readable world before continuing.");
     else
         menu_task.makeCurrent();
 }
@@ -220,9 +222,14 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
         }
 
         has_active_world = false;
-        showStatus("Load failed; previous world could not be restored.");
+        if(restore == LoadResult::UNREADABLE)
+            activatePath(chooseSavePath(previous_path, restore));
+        showStatus("Load failed; previous save kept. Select another world.");
         return;
     }
+
+    if(result == LoadResult::UNREADABLE)
+        activatePath(chooseSavePath(target_path, result));
 
     refreshSlots();
     showStatus(result == LoadResult::UNREADABLE

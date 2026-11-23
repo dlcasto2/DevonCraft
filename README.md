@@ -50,6 +50,7 @@ What's new so far
 - **Game clock:** fixed 20 ticks per second, independent of frame rate.
 - **Entities:** up to 32 entities with physics and collision.
 - **Achievements and advancements:** persistent unlocks for inventory, gathering wood, crafting, mining stone, tools, furnaces, iron, diamonds, beds and building. Open either screen from the game menu. Advancement criteria can be met early and complete automatically once their parent advancement is unlocked.
+- **Custom boot screen:** an original DevonCraft pixel-art startup UI with the wordmark, monochrome-safe palette, and staged loading indicator before the world selector.
 - **World loader:** eight separate world slots. The first slot keeps the existing DevonCraft/Crafti save path; seven additional slots use independent save files. Startup opens the world selector, and the menu can load or create worlds in empty slots. Switching worlds saves the current world first. Unreadable saves are left untouched.
 - **Saves:** new save format (v8) with an automatic backup. Existing v7 worlds and older v6 worlds still load; existing worlds start with empty progression.
 - **Lighting:** 8 brightness levels for the coming day/night cycle.
