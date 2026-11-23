@@ -77,10 +77,27 @@ int main(int argc, char *argv[])
         const bool save_on_exit = getenv("DEVONCRAFT_SAVE_ON_EXIT") != nullptr;
     #endif
 
-    // Choose a save slot before entering the game. Slot 1 keeps the historical
-    // DevonCraft/Crafti save path; the loader supplies seven additional slots.
-    world_loader_task.setPrimaryPath(Task::savefile);
-    world_loader_task.open(WorldLoaderMode::STARTUP);
+    // The fixture verifier is a headless test path: retain direct loading so
+    // automated fixture checks do not need to navigate the on-device selector.
+    #ifndef _TINSPIRE
+        if(verify_fixture)
+        {
+            const LoadResult fixture_result = Task::load();
+            if(fixture_result != LoadResult::OK)
+            {
+                printf("fixture-load-FAIL\\n");
+                return 1;
+            }
+            world_task.makeCurrent();
+        }
+        else
+    #endif
+        {
+            // Choose a save slot before entering the game. Slot 1 keeps the
+            // historical DevonCraft/Crafti save path; seven more slots are available.
+            world_loader_task.setPrimaryPath(Task::savefile);
+            world_loader_task.open(WorldLoaderMode::STARTUP);
+        }
 
     platformTimeInit();
     GameClock game_clock(platformTickRate());
