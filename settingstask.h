@@ -29,6 +29,7 @@ public:
         SHOW_FPS,
         AUTO_JUMP,
         GAMMA,
+        GRAPHICS, // appended to preserve existing settings save indices
     };
 
     SettingsTask();
