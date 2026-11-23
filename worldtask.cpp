@@ -4,7 +4,6 @@
 
 #include "player_motion.h"
 #include "entity.h"
-#include "mobs.h"
 #include "stresstest.h"
 #include "platform_time.h"
 #include "lighting.h"
@@ -201,16 +200,12 @@ void WorldTask::logic()
     if(do_test)
     {
         GLFix dx = fast_sin(yr)*fast_cos(xr), dy = -fast_sin(xr), dz = fast_cos(yr)*fast_cos(xr);
-        GLFix dist = GLFix::maxValue();
+        GLFix dist;
         const ItemStack &held = player_inventory.selectedStack();
         if(!world.intersectsRay(x, y + eye_pos, z, dx, dy, dz, selection_pos, selection_side, dist, !held.empty() && aimsAtWater(held.id)))
             selection_side = AABB::NONE;
         else
             selection_pos_abs = {x + dx * dist, y + eye_pos + dy * dist, z + dz * dist};
-
-        // A mob is targetable only when it is nearer than the block in front of it.
-        aim_mob = aimedMob(x, y + eye_pos, z, dx, dy, dz,
-                           selection_side == AABB::NONE ? GLFix::maxValue() : dist);
     }
 
     world.setPosition(x, y, z);
@@ -432,7 +427,6 @@ void WorldTask::tick()
 
     world.setPosition(x, y, z);
 
-    tickMobs();
     entity_pool.tick(world_collision);
 
     if(player_state.mode == GameMode::SURVIVAL)
@@ -685,108 +679,6 @@ void WorldTask::removeBlock(int bx, int by, int bz, BLOCK_WDATA target)
     }
 }
 
-void WorldTask::tickMobs()
-{
-    // Mobs wander; any that have strayed far from the player go away.
-    const int px = (x / BLOCK_SIZE).floor(), pz = (z / BLOCK_SIZE).floor();
-    entity_pool.forEach([&](Entity &e) {
-        if(e.type != EntityType::MOB)
-            return;
-        const int dx = (e.box.low_x / BLOCK_SIZE).floor() - px, dz = (e.box.low_z / BLOCK_SIZE).floor() - pz;
-        if(dx * dx + dz * dz > MOB_DESPAWN_BLOCKS * MOB_DESPAWN_BLOCKS)
-        {
-            if(aim_mob == &e)
-                aim_mob = nullptr;
-            entity_pool.remove(&e);
-            return;
-        }
-        steerMob(e, mob_rng);
-    });
-
-    if(++mob_spawn_timer >= MOB_SPAWN_INTERVAL_TICKS)
-    {
-        mob_spawn_timer = 0;
-        if(countPassive(entity_pool) < MOB_MAX_PASSIVE)
-            trySpawnPassive();
-    }
-
-    if(mob_hit_cooldown > 0)
-        --mob_hit_cooldown;
-
-    // Survival: holding 9 at a mob hits it instead of mining, once per cooldown.
-    if(input_mine && aim_mob && aim_mob->type == EntityType::MOB && mob_hit_cooldown == 0)
-    {
-        hitMob(*aim_mob);
-        input_mine = false;
-    }
-}
-
-void WorldTask::trySpawnPassive()
-{
-    const uint32_t r = mobRandom(mob_rng);
-    const int px = (x / BLOCK_SIZE).floor(), py = (y / BLOCK_SIZE).floor(), pz = (z / BLOCK_SIZE).floor();
-
-    // Eight to fifteen blocks away, in one of four directions.
-    const int dist = 8 + static_cast<int>(r % 8);
-    const int dir = static_cast<int>((r >> 8) % 4);
-    const int bx = px + MOB_DIR_DX[dir] * dist, bz = pz + MOB_DIR_DZ[dir] * dist;
-
-    // Look down from a little above the player for the top block of that column.
-    for(int by = py + 3; by > py - 8; --by)
-    {
-        if(!world.isLoaded(bx, by, bz))
-            return;
-        const BLOCK top = getBLOCK(world.getBlock(bx, by, bz));
-        if(top == BLOCK_AIR)
-            continue;
-
-        const bool on_grass = top == BLOCK_GRASS && getBLOCK(world.getBlock(bx, by + 1, bz)) == BLOCK_AIR;
-        if(!canSpawnPassive(on_grass, daylightFactor(world_state.time_of_day)))
-            return;
-
-        // A mob is three quarters of a block wide and tall, standing on the grass.
-        const GLFix half = BLOCK_SIZE * 3 / 8;
-        const GLFix cx = GLFix(bx * BLOCK_SIZE + BLOCK_SIZE / 2), cz = GLFix(bz * BLOCK_SIZE + BLOCK_SIZE / 2);
-        const GLFix low_y = GLFix((by + 1) * BLOCK_SIZE), high_y = low_y + BLOCK_SIZE * 3 / 4;
-        const AABB box{cx - half, low_y, cz - half, cx + half, high_y, cz + half};
-        spawnPassive(entity_pool, (r >> 12) % 2 == 0 ? MOB_PIG : MOB_COW, box);
-        return;
-    }
-}
-
-void WorldTask::hitMob(Entity &e)
-{
-    mob_hit_cooldown = MOB_HIT_COOLDOWN_TICKS;
-    if(!hurtMob(e, MOB_HIT_DAMAGE))
-        return;
-
-    const GLFix cx = (e.box.low_x + e.box.high_x) / 2, cy = (e.box.low_y + e.box.high_y) / 2, cz = (e.box.low_z + e.box.high_z) / 2;
-    const ItemStack meat = mobDrop(e.mob_kind);
-    entity_pool.remove(&e);
-    aim_mob = nullptr;
-    spawnDrop(entity_pool, cx, cy, cz, meat, player_inventory);
-}
-
-Entity *WorldTask::aimedMob(GLFix ox, GLFix oy, GLFix oz, GLFix dx, GLFix dy, GLFix dz, GLFix block_dist)
-{
-    // 1.8.8 reach: three blocks.
-    const GLFix reach = GLFix(BLOCK_SIZE) * 3;
-    Entity *best = nullptr;
-    GLFix best_dist = block_dist < reach ? block_dist : reach;
-
-    entity_pool.forEach([&](Entity &e) {
-        if(e.type != EntityType::MOB)
-            return;
-        GLFix d;
-        if(e.box.intersectsRay(ox, oy, oz, dx, dy, dz, d) != AABB::NONE && d < best_dist)
-        {
-            best = &e;
-            best_dist = d;
-        }
-    });
-    return best;
-}
-
 void WorldTask::tickFurnaces()
 {
     static std::vector<BlockPos> gone;
@@ -1024,10 +916,6 @@ void WorldTask::resetWorld()
     entity_pool = EntityPool();
     mining = MiningState();
     sleep_ticks = 0;
-    mob_rng = 0x6d6f62;
-    mob_spawn_timer = 0;
-    mob_hit_cooldown = 0;
-    aim_mob = nullptr;
     creative_flight = false;
     jump_key_was_down = false;
     jump_tap_ticks = 0;
