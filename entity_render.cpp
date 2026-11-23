@@ -3,6 +3,7 @@
 #include "blockrenderer.h"
 #include "item_icons.h"
 #include "itempile.h"
+#include "mob_renderer.h"
 #include "particle.h"
 #include "terrain.h"
 #include "texturetools.h"
@@ -72,7 +73,13 @@ void renderEntities(const EntityPool &pool)
             return;
         }
 
-        // Placeholder look until mobs arrive: the pumpkin face.
+        if(e.type == EntityType::MOB)
+        {
+            renderMob(e);
+            return;
+        }
+
+        // Retain the pumpkin placeholder for stress-test and future entity types.
         glBindTexture(terrain_current);
         Particle::render(center, e.box.high_x - e.box.low_x, dummy_tex);
     });

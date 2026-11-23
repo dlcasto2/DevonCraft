@@ -46,7 +46,7 @@ What's new so far
 - **Game mode:** switch between Survival and Creative in Options (locked in Hardcore).
 - **Low graphics:** caps the active chunk radius at 3 on CX (2 on the original monochrome CAS), matching Abyssal Transcendence's Low preset, uses opaque leaves, and skips cosmetic block animations and particles. It leaves generated terrain and saved block data unchanged. The **Graphics** option applies Normal or Low in one step; Low selects this mode and its 3-chunk CX distance cap (2 on original monochrome CAS). The Low graphics and Distance rows remain editable afterward.
 - **Abyssal Transcendence terrain:** new chunks use six seeded 2D/3D Simplex fields, continent/ridge noise, rivers, lakes, the Dead Zone, the Abyss crater and rim, 15 terrain-biome families, 3D cave channels and lightweight overhangs adapted to the calculator's 40-block height. Existing saved chunks are not rewritten.
-- **Passive mobs:** Pigs and cows spawn on grass in daylight, wander slowly, despawn when far from the player, and drop raw pork or beef after five bare-hand hits. Mob entities are transient and are not saved; the current entity placeholder renderer is retained because this archive contains no animal models or textures.
+- **Passive mobs:** Pigs and cows spawn on grass in daylight, wander slowly, despawn when far from the player, and drop raw pork or beef after five bare-hand hits. Mobs use original low-poly 3D cuboid models and a dedicated 16x16-tile pixel-art texture atlas; mob entities are transient and are not saved.
 - **Game clock:** fixed 20 ticks per second, independent of frame rate.
 - **Entities:** up to 32 entities with physics and collision.
 - **Saves:** new save format (v7) with an automatic backup. An unreadable save is never overwritten, and old v6 worlds still load (in creative mode).
@@ -82,7 +82,7 @@ Planned
 -------
 
 - Health, hunger and damage, including drowning
-- Zombies, creepers, skeletons, passive animals and a wandering trader
+- Zombies, creepers, skeletons and a wandering trader
 - Difficulties: Peaceful, Easy, Normal, Hard and Torment, plus a Hardcore switch
 
 Building
