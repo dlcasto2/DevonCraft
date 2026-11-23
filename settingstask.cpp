@@ -196,6 +196,7 @@ void SettingsTask::resetToDefaults()
         entry.current_value = entry.default_value;
 
     changed_something = false;
+    world.setFieldOfView(settings[DISTANCE].current_value);
     nglSetNearPlane(settings[NEARPLANE_Z].current_value);
     nglSetGamma(settings[GAMMA].current_value);
 }
