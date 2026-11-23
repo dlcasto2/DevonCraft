@@ -104,3 +104,13 @@ ItemId dropItemFor(BLOCK b)
     const ItemId item = blockDef(b).drop.item;
     return item == DROP_SELF ? b : item;
 }
+
+int blockLightLevel(BLOCK_WDATA block)
+{
+    const BLOCK id = getBLOCK(block);
+    if(id == BLOCK_REDSTONE_LAMP && getBLOCKDATA(block) == 0)
+        return 0;
+    if(id == BLOCK_REDSTONE_TORCH && !getPOWERSTATE(block))
+        return 0;
+    return blockDef(id).light;
+}

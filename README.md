@@ -44,7 +44,7 @@ What's new so far
   - button menus and a pixel font with drop shadows
 - **Items:** 56 items, each with its own icon: tools in six materials, food, ores, materials, buckets and snowballs.
 - **Game mode:** switch between Survival and Creative in Options (locked in Hardcore).
-- **Low graphics:** caps the active chunk radius at 3 (matching Abyssal Transcendence's Low preset), uses opaque leaves, and skips cosmetic block animations and particles. It leaves generated terrain and saved block data unchanged.
+- **Low graphics:** caps the active chunk radius at 3 on CX (2 on the original monochrome CAS), matching Abyssal Transcendence's Low preset, uses opaque leaves, and skips cosmetic block animations and particles. It leaves generated terrain and saved block data unchanged.
 - **Abyssal Transcendence terrain:** new chunks use six seeded 2D/3D Simplex fields, continent/ridge noise, rivers, lakes, the Dead Zone, the Abyss crater and rim, 15 terrain-biome families, 3D cave channels and lightweight overhangs adapted to the calculator's 40-block height. Existing saved chunks are not rewritten.
 - **Game clock:** fixed 20 ticks per second, independent of frame rate.
 - **Entities:** up to 32 entities with physics and collision.

@@ -59,17 +59,18 @@
     const TriFix dz_far = TriFix(high->z - low->z) / height_far;
 
     #ifdef TEXTURE_SUPPORT
-        const TriFix du_upper = TriFix(high->u - middle->u) / height_upper;
-        const TriFix dv_upper = TriFix(high->v - middle->v) / height_upper;
-
-        const TriFix du_lower = TriFix(middle->u - low->u) / height_lower;
-        const TriFix dv_lower = TriFix(middle->v - low->v) / height_lower;
-
-        const TriFix du_far = TriFix(high->u - low->u) / height_far;
-        const TriFix dv_far = TriFix(high->v - low->v) / height_far;
-
-        TriFix ustart = low->u, uend = low->u;
-        TriFix vstart = low->v, vend = low->v;
+        const TriFix duq_upper = TriFix(high->u_over_z - middle->u_over_z) / height_upper;
+        const TriFix dvq_upper = TriFix(high->v_over_z - middle->v_over_z) / height_upper;
+        const TriFix dq_upper = TriFix(high->tex_q - middle->tex_q) / height_upper;
+        const TriFix duq_lower = TriFix(middle->u_over_z - low->u_over_z) / height_lower;
+        const TriFix dvq_lower = TriFix(middle->v_over_z - low->v_over_z) / height_lower;
+        const TriFix dq_lower = TriFix(middle->tex_q - low->tex_q) / height_lower;
+        const TriFix duq_far = TriFix(high->u_over_z - low->u_over_z) / height_far;
+        const TriFix dvq_far = TriFix(high->v_over_z - low->v_over_z) / height_far;
+        const TriFix dq_far = TriFix(high->tex_q - low->tex_q) / height_far;
+        TriFix uqstart = low->u_over_z, uqend = low->u_over_z;
+        TriFix vqstart = low->v_over_z, vqend = low->v_over_z;
+        TriFix qstart = low->tex_q, qend = low->tex_q;
     #elif defined(INTERPOLATE_COLORS)
         const RGB high_rgb = rgbColor(high->c);
         const RGB middle_rgb = rgbColor(middle->c);
@@ -117,12 +118,15 @@
         zend += dz_upper * diff_upper;
 
         #ifdef TEXTURE_SUPPORT
-            ustart += du_far * diff;
-            vstart += dv_far * diff;
-            uend += du_lower * diff_lower;
-            vend += dv_lower * diff_lower;
-            uend += du_upper * diff_upper;
-            vend += dv_upper * diff_upper;
+            uqstart += duq_far * diff;
+            vqstart += dvq_far * diff;
+            qstart += dq_far * diff;
+            uqend += duq_lower * diff_lower;
+            vqend += dvq_lower * diff_lower;
+            qend += dq_lower * diff_lower;
+            uqend += duq_upper * diff_upper;
+            vqend += dvq_upper * diff_upper;
+            qend += dq_upper * diff_upper;
         #elif defined(INTERPOLATE_COLORS)
             rstart += dr_far * diff;
             gstart += dg_far * diff;
@@ -145,7 +149,7 @@
 
     TriFix dx_current = dx_lower, dz_current = dz_lower;
 #ifdef TEXTURE_SUPPORT
-    TriFix du_current = du_lower, dv_current = dv_lower;
+    TriFix duq_current = duq_lower, dvq_current = dvq_lower, dq_current = dq_lower;
 #elif defined(INTERPOLATE_COLORS)
     TriFix dr_current = dr_lower, dg_current = dg_lower, db_current = db_lower;
 #endif
@@ -156,8 +160,9 @@
         dz_current = dz_upper;
 
         #ifdef TEXTURE_SUPPORT
-            du_current = du_upper;
-            dv_current = dv_upper;
+            duq_current = duq_upper;
+            dvq_current = dvq_upper;
+            dq_current = dq_upper;
         #elif defined(INTERPOLATE_COLORS)
             dr_current = dr_upper;
             dg_current = dg_upper;
@@ -185,9 +190,10 @@
             TriFix z = zstart;
 
             #ifdef TEXTURE_SUPPORT
-                const TriFix du = (uend - ustart) * inv_l;
-                const TriFix dv = (vend - vstart) * inv_l;
-                TriFix u = ustart, v = vstart;
+                const TriFix duq = (uqend - uqstart) * inv_l;
+                const TriFix dvq = (vqend - vqstart) * inv_l;
+                const TriFix dq = (qend - qstart) * inv_l;
+                TriFix uq = uqstart, vq = vqstart, q = qstart;
             #elif defined(INTERPOLATE_COLORS)
                 const TriFix dr = (rend - rstart) * inv_l;
                 const TriFix dg = (gend - gstart) * inv_l;
@@ -196,14 +202,36 @@
                 TriFix r = rstart, g = gstart, b = bstart;
             #endif
 
+#ifdef TEXTURE_SUPPORT
             decltype(z_buffer) z_buf = z_buf_line + x1;
             decltype(screen) screen_buf = screen_buf_line + x1;
-            for(int x = x1; x <= x2; x += 1, ++z_buf, ++screen_buf)
+            int x = x1;
+            while(x <= x2)
             {
-                if(__builtin_expect(TriFix(*z_buf) > z, true))
+                // Correct UVs at short span endpoints, then interpolate within
+                // the span. This avoids reciprocal division for every pixel.
+                const int span = std::min(8, x2 - x + 1);
+                const int span_steps = span - 1;
+                const TriFix q_end = q + dq * span_steps;
+                const TriFix uq_end = uq + duq * span_steps;
+                const TriFix vq_end = vq + dvq * span_steps;
+                const TriFix inv_q = q > TriFix(0) ? TriFix(1) / q : TriFix(0);
+                const TriFix inv_q_end = q_end > TriFix(0) ? TriFix(1) / q_end : inv_q;
+                const TriFix u_start = perspectiveProduct(uq, inv_q);
+                const TriFix v_start = perspectiveProduct(vq, inv_q);
+                const TriFix u_end = perspectiveProduct(uq_end, inv_q_end);
+                const TriFix v_end = perspectiveProduct(vq_end, inv_q_end);
+                const TriFix du = span_steps ? (u_end - u_start) / span_steps : TriFix(0);
+                const TriFix dv = span_steps ? (v_end - v_start) / span_steps : TriFix(0);
+                TriFix u = u_start, v = v_start;
+
+                for(int i = 0; i < span; ++i, ++x, ++z_buf, ++screen_buf)
                 {
-                    #ifdef TEXTURE_SUPPORT
-                        COLOR c = loc_texture.bitmap[u.floor() + v.floor()*loc_texture.width];
+                    if(__builtin_expect(TriFix(*z_buf) > z, true))
+                    {
+                        const int tex_x = clampTextureTexel(u.floor(), static_cast<int>(loc_texture.width));
+                        const int tex_y = clampTextureTexel(v.floor(), static_cast<int>(loc_texture.height));
+                        COLOR c = loc_texture.bitmap[tex_x + tex_y*loc_texture.width];
                         #ifdef TRANSPARENCY
                             if(__builtin_expect(c != 0x0000, 1))
                             {
@@ -214,26 +242,38 @@
                             *screen_buf = c;
                             *z_buf = z;
                         #endif
-                    #elif defined(INTERPOLATE_COLORS)
-                        *screen_buf = colorRGB(r, g, b);
-                        *z_buf = z;
-                    #else
-                        *screen_buf = low->c;
-                        *z_buf = z;
-                    #endif
-                }
-
-                #ifdef TEXTURE_SUPPORT
+                    }
                     u += du;
                     v += dv;
-                #elif defined(INTERPOLATE_COLORS)
+                    z += dz;
+                    uq += duq;
+                    vq += dvq;
+                    q += dq;
+                }
+            }
+#else
+            decltype(z_buffer) z_buf = z_buf_line + x1;
+            decltype(screen) screen_buf = screen_buf_line + x1;
+            for(int x = x1; x <= x2; x += 1, ++z_buf, ++screen_buf)
+            {
+                if(__builtin_expect(TriFix(*z_buf) > z, true))
+                {
+                    #ifdef INTERPOLATE_COLORS
+                        *screen_buf = colorRGB(r, g, b);
+                    #else
+                        *screen_buf = low->c;
+                    #endif
+                    *z_buf = z;
+                }
+
+                #ifdef INTERPOLATE_COLORS
                     r += dr;
                     g += dg;
                     b += db;
                 #endif
-
                 z += dz;
             }
+#endif
         }
 
         xstart += dx_far;
@@ -243,10 +283,12 @@
         zend += dz_current;
 
         #ifdef TEXTURE_SUPPORT
-                ustart += du_far;
-                vstart += dv_far;
-                uend += du_current;
-                vend += dv_current;
+                uqstart += duq_far;
+                vqstart += dvq_far;
+                qstart += dq_far;
+                uqend += duq_current;
+                vqend += dvq_current;
+                qend += dq_current;
         #elif defined(INTERPOLATE_COLORS)
                 rstart += dr_far;
                 gstart += dg_far;
@@ -263,8 +305,9 @@
             dz_current = dz_upper;
 
             #ifdef TEXTURE_SUPPORT
-                du_current = du_upper;
-                dv_current = dv_upper;
+                duq_current = duq_upper;
+                dvq_current = dvq_upper;
+                dq_current = dq_upper;
             #elif defined(INTERPOLATE_COLORS)
                 dr_current = dr_upper;
                 dg_current = dg_upper;
@@ -288,9 +331,10 @@
             TriFix z = zend;
 
             #ifdef TEXTURE_SUPPORT
-                const TriFix du = (uend - ustart) * inv_l;
-                const TriFix dv = (vend - vstart) * inv_l;
-                TriFix u = uend, v = vend;
+                const TriFix duq = (uqend - uqstart) * inv_l;
+                const TriFix dvq = (vqend - vqstart) * inv_l;
+                const TriFix dq = (qend - qstart) * inv_l;
+                TriFix uq = uqend, vq = vqend, q = qend;
             #elif defined(INTERPOLATE_COLORS)
                 const TriFix dg = (gend - gstart) * inv_l;
                 const TriFix db = (bend - bstart) * inv_l;
@@ -299,14 +343,36 @@
                 TriFix r = rend, g = gend, b = bend;
             #endif
 
+#ifdef TEXTURE_SUPPORT
             decltype(z_buffer) z_buf = z_buf_line + x1;
             decltype(screen) screen_buf = screen_buf_line + x1;
-            for(int x = x1; x <= x2; x += 1, ++z_buf, ++screen_buf)
+            int x = x1;
+            while(x <= x2)
             {
-                if(__builtin_expect(TriFix(*z_buf) > z, true))
+                // Correct UVs at short span endpoints, then interpolate within
+                // the span. This avoids reciprocal division for every pixel.
+                const int span = std::min(8, x2 - x + 1);
+                const int span_steps = span - 1;
+                const TriFix q_end = q + dq * span_steps;
+                const TriFix uq_end = uq + duq * span_steps;
+                const TriFix vq_end = vq + dvq * span_steps;
+                const TriFix inv_q = q > TriFix(0) ? TriFix(1) / q : TriFix(0);
+                const TriFix inv_q_end = q_end > TriFix(0) ? TriFix(1) / q_end : inv_q;
+                const TriFix u_start = perspectiveProduct(uq, inv_q);
+                const TriFix v_start = perspectiveProduct(vq, inv_q);
+                const TriFix u_end = perspectiveProduct(uq_end, inv_q_end);
+                const TriFix v_end = perspectiveProduct(vq_end, inv_q_end);
+                const TriFix du = span_steps ? (u_end - u_start) / span_steps : TriFix(0);
+                const TriFix dv = span_steps ? (v_end - v_start) / span_steps : TriFix(0);
+                TriFix u = u_start, v = v_start;
+
+                for(int i = 0; i < span; ++i, ++x, ++z_buf, ++screen_buf)
                 {
-                    #ifdef TEXTURE_SUPPORT
-                        COLOR c = loc_texture.bitmap[u.floor() + v.floor()*loc_texture.width];
+                    if(__builtin_expect(TriFix(*z_buf) > z, true))
+                    {
+                        const int tex_x = clampTextureTexel(u.floor(), static_cast<int>(loc_texture.width));
+                        const int tex_y = clampTextureTexel(v.floor(), static_cast<int>(loc_texture.height));
+                        COLOR c = loc_texture.bitmap[tex_x + tex_y*loc_texture.width];
                         #ifdef TRANSPARENCY
                             if(__builtin_expect(c != 0x0000, 1))
                             {
@@ -317,26 +383,38 @@
                             *screen_buf = c;
                             *z_buf = z;
                         #endif
-                    #elif defined(INTERPOLATE_COLORS)
-                        *screen_buf = colorRGB(r, g, b);
-                        *z_buf = z;
-                    #else
-                        *screen_buf = low->c;
-                        *z_buf = z;
-                    #endif
-                }
-
-                #ifdef TEXTURE_SUPPORT
+                    }
                     u += du;
                     v += dv;
-                #elif defined(INTERPOLATE_COLORS)
+                    z += dz;
+                    uq += duq;
+                    vq += dvq;
+                    q += dq;
+                }
+            }
+#else
+            decltype(z_buffer) z_buf = z_buf_line + x1;
+            decltype(screen) screen_buf = screen_buf_line + x1;
+            for(int x = x1; x <= x2; x += 1, ++z_buf, ++screen_buf)
+            {
+                if(__builtin_expect(TriFix(*z_buf) > z, true))
+                {
+                    #ifdef INTERPOLATE_COLORS
+                        *screen_buf = colorRGB(r, g, b);
+                    #else
+                        *screen_buf = low->c;
+                    #endif
+                    *z_buf = z;
+                }
+
+                #ifdef INTERPOLATE_COLORS
                     r += dr;
                     g += dg;
                     b += db;
                 #endif
-
                 z += dz;
             }
+#endif
         }
 
         xstart += dx_far;
@@ -346,11 +424,13 @@
         zend += dz_current;
 
         #ifdef TEXTURE_SUPPORT
-                ustart += du_far;
-                vstart += dv_far;
+                uqstart += duq_far;
+                vqstart += dvq_far;
+                qstart += dq_far;
 
-                uend += du_current;
-                vend += dv_current;
+                uqend += duq_current;
+                vqend += dvq_current;
+                qend += dq_current;
         #elif defined(INTERPOLATE_COLORS)
                 rstart += dr_far;
                 gstart += dg_far;
@@ -367,8 +447,9 @@
             dz_current = dz_upper;
 
             #ifdef TEXTURE_SUPPORT
-                du_current = du_upper;
-                dv_current = dv_upper;
+                duq_current = duq_upper;
+                dvq_current = dvq_upper;
+                dq_current = dq_upper;
             #elif defined(INTERPOLATE_COLORS)
                 dr_current = dr_upper;
                 dg_current = dg_upper;

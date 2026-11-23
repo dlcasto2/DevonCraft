@@ -19,6 +19,51 @@
 //GLFix is an integral part of all calculations.
 //Changing resolution and width may be an improvement or even break everything.
 typedef Fix<8, int32_t> GLFix;
+// Q10 texture attributes for perspective-correct interpolation.
+typedef Fix<10, int32_t> TexFix;
+
+inline TexFix perspectiveReciprocalDepth(GLFix depth, GLFix near_depth)
+{
+    if(depth <= GLFix(0)) return TexFix(0);
+    return TexFix(near_depth) / TexFix(depth);
+}
+inline TexFix perspectiveProduct(TexFix a, TexFix b)
+{
+    TexFix result;
+    result.value = static_cast<int32_t>((static_cast<int64_t>(a.value) * b.value) / 1024);
+    return result;
+}
+inline TexFix perspectiveProduct(GLFix coordinate, TexFix reciprocal_depth)
+{
+    return perspectiveProduct(TexFix(coordinate), reciprocal_depth);
+}
+inline TexFix perspectiveLerp(TexFix a, TexFix b, TexFix t)
+{
+    TexFix result;
+    result.value = static_cast<int32_t>(a.value + (static_cast<int64_t>(b.value - a.value) * t.value) / 1024);
+    return result;
+}
+inline GLFix perspectiveRecoverCoordinate(TexFix coordinate_over_depth, TexFix reciprocal_depth)
+{
+    if(reciprocal_depth <= TexFix(0)) return GLFix(0);
+    GLFix result;
+    const int64_t q10 = (static_cast<int64_t>(coordinate_over_depth.value) * 1024) / reciprocal_depth.value;
+    result.value = static_cast<int32_t>(q10 / 4);
+    return result;
+}
+
+ // Keep sampler indices inside the bitmap even when fixed-point interpolation
+ // produces a coordinate just outside the texture edge.
+inline int clampTextureTexel(int coordinate, int extent)
+{
+    if(extent <= 0)
+        return 0;
+    if(coordinate < 0)
+        return 0;
+    if(coordinate >= extent)
+        return extent - 1;
+    return coordinate;
+}
 
 /* Column vectors and matrices:
  * [ [0][0] [0][1] [0][2] [0][3] ]   [x]
@@ -52,13 +97,15 @@ struct VERTEX
 {
     VERTEX() : VERTEX(0, 0, 0, 0, 0, 0) {}
     VERTEX(const GLFix x, const GLFix y, const GLFix z, const GLFix u, const GLFix v, const COLOR c)
-        : x(x), y(y), z(z), u(u), v(v), c(c) {}
+        : x(x), y(y), z(z), u(u), v(v), c(c), tex_q(0), u_over_z(0), v_over_z(0) {}
 
     void print() const { printf("(%d %d %d) (0x%x) (%d %d)\n", x.toInteger<int>(), y.toInteger<int>(), z.toInteger<int>(), c, u.toInteger<int>(), v.toInteger<int>()); }
 
     GLFix x, y, z;
     GLFix u, v;
     COLOR c;
+    // Populated after camera-space clipping; these interpolate linearly on screen.
+    TexFix tex_q, u_over_z, v_over_z;
 };
 
 struct TEXTURE
@@ -108,6 +155,8 @@ void nglUninit();
 //The buffer to render to
 void nglSetBuffer(COLOR *screenBuf);
 void nglSetNearPlane(const GLFix near_plane);
+// Display gamma as a percentage: 100 is neutral, 50 is darker, 200 is brighter.
+void nglSetGamma(unsigned int percent);
 GLFix nglGetNearPlane();
 GLFix nglZBufferAt(const unsigned int x, const unsigned int y);
 //Display the buffer

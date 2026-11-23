@@ -7,6 +7,7 @@
 #include "stresstest.h"
 #include "platform_time.h"
 #include "lighting.h"
+#include "blockdefs.h"
 #include "gamestate.h"
 #include "furnace.h"
 #include "furnacescreen.h"
@@ -80,7 +81,43 @@ void WorldTask::logic()
     // Record this frame's movement intent; tick() applies physics.
     input_forward = keyPressed(KEY_NSPIRE_8) ? 1 : (keyPressed(KEY_NSPIRE_2) ? -1 : 0);
     input_strafe = keyPressed(KEY_NSPIRE_6) ? 1 : (keyPressed(KEY_NSPIRE_4) ? -1 : 0);
-    input_jump = keyPressed(KEY_NSPIRE_5);
+
+    const bool jump_down = keyPressed(KEY_NSPIRE_5);
+    input_jump = jump_down;
+
+    // Creative flight uses the familiar double-tap-jump gesture. The timer is
+    // measured in simulation ticks so it remains consistent across frame rates.
+    if(player_state.mode == GameMode::CREATIVE)
+    {
+        if(jump_down && !jump_key_was_down)
+        {
+            if(jump_tap_ticks > 0)
+            {
+                creative_flight = !creative_flight;
+                jump_tap_ticks = 0;
+                vy = 0;
+                can_jump = false;
+                setMessage(creative_flight ? "Creative flight ON." : "Creative flight OFF.");
+            }
+            else
+                jump_tap_ticks = 12; // 0.6 seconds at 20 ticks per second
+        }
+    }
+    else
+    {
+        jump_tap_ticks = 0;
+        if(creative_flight)
+        {
+            creative_flight = false;
+            vy = 0;
+            can_jump = false;
+            setMessage("Creative flight disabled.");
+        }
+    }
+    jump_key_was_down = jump_down;
+    input_descend = creative_flight && player_state.mode == GameMode::CREATIVE
+                 && keyPressed(KEY_NSPIRE_0);
+
     // Survival mines while 9 is held; tick() does the work.
     input_mine = player_state.mode == GameMode::SURVIVAL && keyPressed(KEY_NSPIRE_9);
 
@@ -353,6 +390,9 @@ void WorldTask::logic()
 
 void WorldTask::tick()
 {
+    if(jump_tap_ticks > 0)
+        --jump_tap_ticks;
+
     // Build the physics box from the current position, run one tick, read it back.
     AABB box{x - player_width/2, y, z - player_width/2, x + player_width/2, y + player_height, z + player_width/2};
 
@@ -368,7 +408,16 @@ void WorldTask::tick()
     const GLFix walk = velocityPerTick(speed(), V13_FPS);
     const bool auto_jump = settings_task.getValue(SettingsTask::AUTO_JUMP) != 0;
 
-    playerTick(world_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump}, yr, walk, auto_jump);
+    if(creative_flight && player_state.mode == GameMode::CREATIVE)
+    {
+        playerFlyTick(world_collision, box, input_forward, input_strafe,
+                      input_jump, input_descend, yr, walk);
+        motion.vy = 0;
+        motion.on_ground = false;
+        motion.swimming = false;
+    }
+    else
+        playerTick(world_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump}, yr, walk, auto_jump);
 
     x = (box.low_x + box.high_x) / 2;
     y = box.low_y;
@@ -397,7 +446,25 @@ void WorldTask::tick()
     }
 
     world_state.time_of_day = (world_state.time_of_day + 1) % DAY_TICKS;
-    world.setBrightnessAll(skyBrightnessLevel(world_state.time_of_day));
+    const int ambient_light = skyBrightnessLevel(world_state.time_of_day);
+    world.setBrightnessAll(ambient_light);
+
+    #ifndef STRESS_TEST
+        const ItemStack &held_light = player_inventory.selectedStack();
+        int hand_light_level = 0;
+        if(!held_light.empty() && isBlockItem(held_light.id) && held_light.id <= BLOCK_SPECIAL_LAST)
+        {
+            const BLOCK held_block = static_cast<BLOCK>(held_light.id);
+            hand_light_level = blockDef(held_block).light;
+            if(held_block == BLOCK_REDSTONE_LAMP && (held_light.meta & 1u) == 0)
+                hand_light_level = 0;
+        }
+        world.updateDynamicLighting(ambient_light,
+                                    (x / BLOCK_SIZE).floor(),
+                                    (y / BLOCK_SIZE).floor(),
+                                    (z / BLOCK_SIZE).floor(),
+                                    hand_light_level);
+    #endif
 
     #ifdef STRESS_TEST
         if(!stress_spawned)
@@ -849,6 +916,10 @@ void WorldTask::resetWorld()
     entity_pool = EntityPool();
     mining = MiningState();
     sleep_ticks = 0;
+    creative_flight = false;
+    jump_key_was_down = false;
+    jump_tap_ticks = 0;
+    input_jump = input_descend = false;
 }
 
 void WorldTask::setMessage(const char *message)

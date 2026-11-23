@@ -34,4 +34,9 @@ AABB swimBox(const AABB &player_box);
 void playerTick(const CollisionQuery &world, AABB &box, PlayerMotion &m, const PlayerInput &in,
                 GLFix yaw, GLFix walk_per_tick, bool auto_jump);
 
+// Collision-aware creative flight. Ascend and descend are independent controls;
+// horizontal steering follows the same yaw-relative movement as walking.
+void playerFlyTick(const CollisionQuery &world, AABB &box, int8_t forward, int8_t strafe,
+                   bool ascend, bool descend, GLFix yaw, GLFix fly_per_tick);
+
 #endif // PLAYER_MOTION_H

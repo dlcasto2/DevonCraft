@@ -27,6 +27,36 @@ TEST_CASE("jump only from the ground") {
     CHECK(m.vy < vy1); CHECK(box.low_y > y1);
 }
 
+TEST_CASE("creative flight moves vertically and respects ceiling and floor collisions") {
+    GridWorld w;
+    w.solid.insert(std::make_tuple(0, 0, 0)); // floor
+    w.solid.insert(std::make_tuple(0, 3, 0)); // ceiling
+    AABB box = playerBoxAt(64, 128, 64);
+
+    playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(144));
+
+    // A second ascent would push the two-block player into the ceiling.
+    playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(144));
+
+    playerFlyTick(w, box, 0, 0, false, true, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(128));
+
+    // Descending cannot clip the player through the floor.
+    playerFlyTick(w, box, 0, 0, false, true, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(128));
+}
+
+TEST_CASE("creative flight keeps yaw-relative horizontal steering") {
+    GridWorld w;
+    AABB box = playerBoxAt(64, 128, 64);
+    const GLFix z0 = box.low_z;
+    playerFlyTick(w, box, 1, 0, false, false, GLFix(0), GLFix(16));
+    CHECK(box.low_z > z0);
+    CHECK(box.low_y == GLFix(128)); // no gravity while hovering
+}
+
 static GridWorld stepWorld() {
     GridWorld w; for (int x = -3; x <= 3; ++x) w.solid.insert(std::make_tuple(x, 0, 0));
     w.solid.insert(std::make_tuple(0, 1, 1));

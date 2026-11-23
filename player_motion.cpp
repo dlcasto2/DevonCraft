@@ -86,3 +86,20 @@ void playerTick(const CollisionQuery &world, AABB &box, PlayerMotion &m, const P
         m.vy = 0;
     m.on_ground = r.on_ground;
 }
+
+void playerFlyTick(const CollisionQuery &world, AABB &box, int8_t forward, int8_t strafe,
+                   bool ascend, bool descend, GLFix yaw, GLFix fly_per_tick)
+{
+    // Creative flight stays horizontal relative to the player's facing direction.
+    const GLFix fwd_x = fast_sin(yaw), fwd_z = fast_cos(yaw);
+    const GLFix right_x = fast_sin((yaw + 90).normaliseAngle());
+    const GLFix right_z = fast_cos((yaw + 90).normaliseAngle());
+
+    const GLFix dx = (fwd_x * forward + right_x * strafe) * fly_per_tick;
+    const GLFix dz = (fwd_z * forward + right_z * strafe) * fly_per_tick;
+    const GLFix dy = (ascend ? fly_per_tick : GLFix(0))
+                   - (descend ? fly_per_tick : GLFix(0));
+
+    // No gravity or water drag while flying. All three axes still respect blocks.
+    moveWithCollision(world, box, dx, dy, dz);
+}
