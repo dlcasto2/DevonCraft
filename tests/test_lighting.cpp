@@ -9,3 +9,16 @@ TEST_CASE("brightness rises with level") {
     for (int l = 0; l < 7; ++l)
         CHECK((darkenColor(0xF800, l, 0) >> 11) <= (darkenColor(0xF800, l + 1, 0) >> 11));
 }
+
+TEST_CASE("dynamic light brightens nearby chunks and attenuates with distance") {
+    CHECK(combineDynamicLight(3, 14, 0) == 7);
+    CHECK(combineDynamicLight(3, 14, 2) == 6);
+    CHECK(combineDynamicLight(3, 14, 6) == 4);
+    CHECK(combineDynamicLight(3, 14, 14) == 3);
+}
+
+TEST_CASE("dynamic light never reduces ambient brightness or exceeds its maximum") {
+    CHECK(combineDynamicLight(5, 14, 14) == 5);
+    CHECK(combineDynamicLight(7, 15, 0) == 7);
+    CHECK(combineDynamicLight(3, 0, 0) == 3);
+}
