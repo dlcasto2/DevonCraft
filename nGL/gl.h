@@ -52,6 +52,19 @@ inline GLFix perspectiveRecoverCoordinate(TexFix coordinate_over_depth, TexFix r
     return result;
 }
 
+ // Keep sampler indices inside the bitmap even when fixed-point interpolation
+ // produces a coordinate just outside the texture edge.
+inline int clampTextureTexel(int coordinate, int extent)
+{
+    if(extent <= 0)
+        return 0;
+    if(coordinate < 0)
+        return 0;
+    if(coordinate >= extent)
+        return extent - 1;
+    return coordinate;
+}
+
 /* Column vectors and matrices:
  * [ [0][0] [0][1] [0][2] [0][3] ]   [x]
  * [ [1][0] [1][1] [1][2] [1][3] ] * [y]

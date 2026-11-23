@@ -170,7 +170,7 @@ void nglPerspective(VERTEX *v)
     if(v->u > GLFix(texture->width))
     {
         printf("Warning: Texture coord out of bounds!\n");
-        v->u = texture->height;
+        v->u = texture->width;
     }
     else if(v->u < GLFix(0))
     {

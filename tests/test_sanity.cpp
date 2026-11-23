@@ -37,3 +37,13 @@ TEST_CASE("perspective-correct texture coordinates compensate for depth") {
     CHECK(u_mid.toInteger<int>() == 20);
     CHECK(u_mid.toInteger<int>() != 50); // 50 would be affine screen-space mapping.
 }
+
+TEST_CASE("texture sampling coordinates stay inside bitmap bounds") {
+    CHECK(clampTextureTexel(-1, 16) == 0);
+    CHECK(clampTextureTexel(0, 16) == 0);
+    CHECK(clampTextureTexel(7, 16) == 7);
+    CHECK(clampTextureTexel(15, 16) == 15);
+    CHECK(clampTextureTexel(16, 16) == 15);
+    CHECK(clampTextureTexel(100, 16) == 15);
+    CHECK(clampTextureTexel(-1, 0) == 0);
+}

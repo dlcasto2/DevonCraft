@@ -229,7 +229,9 @@
                 {
                     if(__builtin_expect(TriFix(*z_buf) > z, true))
                     {
-                        COLOR c = loc_texture.bitmap[u.floor() + v.floor()*loc_texture.width];
+                        const int tex_x = clampTextureTexel(u.floor(), static_cast<int>(loc_texture.width));
+                        const int tex_y = clampTextureTexel(v.floor(), static_cast<int>(loc_texture.height));
+                        COLOR c = loc_texture.bitmap[tex_x + tex_y*loc_texture.width];
                         #ifdef TRANSPARENCY
                             if(__builtin_expect(c != 0x0000, 1))
                             {
@@ -368,7 +370,9 @@
                 {
                     if(__builtin_expect(TriFix(*z_buf) > z, true))
                     {
-                        COLOR c = loc_texture.bitmap[u.floor() + v.floor()*loc_texture.width];
+                        const int tex_x = clampTextureTexel(u.floor(), static_cast<int>(loc_texture.width));
+                        const int tex_y = clampTextureTexel(v.floor(), static_cast<int>(loc_texture.height));
+                        COLOR c = loc_texture.bitmap[tex_x + tex_y*loc_texture.width];
                         #ifdef TRANSPARENCY
                             if(__builtin_expect(c != 0x0000, 1))
                             {
