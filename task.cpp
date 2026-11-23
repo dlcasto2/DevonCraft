@@ -161,6 +161,15 @@ LoadResult Task::load()
 
     gzclose(file);
 
+    // Do not generate chunks from a partially read/corrupt save. main() will
+    // reset the world state and switch to a separate .new save path.
+    if(!ret)
+    {
+        world.clear();
+        #undef LOAD_OR_FAIL
+        return LoadResult::UNREADABLE;
+    }
+
     world.setPosition(world_task.x, world_task.y, world_task.z);
 
     // Entities aren't saved: start fresh, then bring back the saved item piles.
@@ -169,7 +178,7 @@ LoadResult Task::load()
 
     #undef LOAD_OR_FAIL
 
-    return ret ? LoadResult::OK : LoadResult::UNREADABLE;
+    return LoadResult::OK;
 }
 
 bool Task::save()
