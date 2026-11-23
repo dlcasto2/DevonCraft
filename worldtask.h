@@ -20,7 +20,8 @@ public:
 
     GLFix x, y = World::HEIGHT * Chunk::SIZE * BLOCK_SIZE, z, xr, yr;
 
-    static constexpr GLFix player_width = BLOCK_SIZE*0.8f, player_height = BLOCK_SIZE*1.8f, eye_pos = BLOCK_SIZE*1.6f;
+    // The player occupies two full blocks; eye level stays 0.2 blocks below the head.
+    static constexpr GLFix player_width = BLOCK_SIZE*0.8f, player_height = BLOCK_SIZE*2.0f, eye_pos = BLOCK_SIZE*1.8f;
 
     void setMessage(const char *message);
 
