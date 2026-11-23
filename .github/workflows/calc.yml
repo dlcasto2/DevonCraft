@@ -7,12 +7,18 @@ on:
 permissions:
   contents: read
 
+# Keep only the newest calculator build for this branch. Several commits in
+# quick succession should not queue multiple full Ndless compiler builds.
+concurrency:
+  group: calculator-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   host-tests:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out DevonCraft
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install host test dependencies
         run: |
@@ -26,13 +32,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out DevonCraft
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           path: devoncraft
 
       - name: Check out Ndless SDK
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ndless-nspire/Ndless
           ref: r2020
@@ -45,12 +51,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgmp-dev libmpfr-dev libmpc-dev libboost-program-options-dev
 
-      # The Ndless build script uses both the installed toolchain and its
-      # .built_* marker files to decide which compiler stages can be skipped.
-      # Cache both so a cache hit avoids the multi-stage GCC/binutils rebuild.
+      # Preserve the installed compiler and the Ndless build script's stage
+      # markers. With a cache hit, the expensive multi-stage toolchain build
+      # is skipped; a cache miss rebuilds and saves it.
       - name: Restore Ndless toolchain cache
         id: toolchain-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ndless/ndless-sdk/toolchain/install
@@ -86,7 +92,7 @@ jobs:
           make STRESS=1 -j"$(nproc)"
 
       - name: Upload calculator executables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: devoncraft-calculator
           path: |

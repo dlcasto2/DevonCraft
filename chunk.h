@@ -22,6 +22,7 @@ public:
     Chunk(int x, int y, int z);
     void logic(bool ticks_enabled);
     void render();
+    void releaseGeometry(); // Free off-screen mesh buffers while preserving block data.
     void setBrightness(int level) { brightness = level; }
     void setDirty(bool dirty = true) { render_dirty = dirty; }
     bool isDirty() { return render_dirty; }

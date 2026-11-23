@@ -6,6 +6,7 @@
 #include "textures/terrain.h"
 #include "textures/inv_selection.h"
 #include "block_art.h"
+#include "realistic_block_textures.h"
 
 const char *block_names[BLOCK_NORMAL_LAST + 1] =
 {
@@ -208,6 +209,7 @@ void terrainInit(const char *texture_path)
 
     // Blocks added by Survival Edition, drawn into free cells of row 4.
     paintAddedBlockTextures(*terrain_current, field_width, field_height);
+    paintRealisticBlockTextures(*terrain_current, field_width, field_height);
 
     // Water has opacity of 0.5 but it's not rendered with alpha here.
     makeWaterOpaque(*terrain_current, 13 * field_width, 12 * field_height, field_width, field_height);

@@ -30,8 +30,13 @@ std::string chooseSavePath(const std::string &original, LoadResult r);
 // -1 missing, -2 unreadable, otherwise the leading version int.
 int readSaveVersion(const char *path);
 
+// Optional rename hook exists for fault-injection tests. Passing nullptr uses
+// the platform rename(). A failed replacement leaves the old save untouched.
+typedef int (*SaveRenameFunction)(const char *old_path, const char *new_path);
+
 // Write via a temp file and swap in only on success, backing up a pre-v7 save
-// once. Returns false without touching the old save if the writer fails.
-bool replaceSaveSafely(const std::string &path, bool (*write)(gzFile, void *), void *ctx);
+// once. Returns false without deleting or truncating the old save on failure.
+bool replaceSaveSafely(const std::string &path, bool (*write)(gzFile, void *), void *ctx,
+                       SaveRenameFunction rename_function = nullptr);
 
 #endif // SAVEFILE_H

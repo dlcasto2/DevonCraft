@@ -13,6 +13,7 @@
 #include "lighting.h"
 #include "fastmath.h"
 #include "blockrenderer.h"
+#include "blockdefs.h"
 #include "settingstask.h"
 
 //Texture with "Loading" written on it
@@ -104,7 +105,12 @@ void Chunk::buildGeometry()
 {
     drawLoadingtext(8);
 
-    std::fill(pos_indices[0][0] + 0, pos_indices[SIZE][SIZE] + SIZE + 1, -1);
+    // Reset each innermost row separately. Flattening a multidimensional
+    // array into one iterator range crosses array subobjects and is undefined
+    // behavior, which can corrupt the shared vertex-position cache.
+    for(int x = 0; x <= SIZE; ++x)
+        for(int y = 0; y <= SIZE; ++y)
+            std::fill(pos_indices[x][y], pos_indices[x][y] + SIZE + 1, -1);
 
     positions.clear();
     vertices.clear();
@@ -181,7 +187,10 @@ void Chunk::buildGeometry()
         }
     }
 
-    std::fill(sides_rendered[0][0] + 0, sides_rendered[SIZE - 1][SIZE - 1] + SIZE, 0);
+    // As above, clear each row using iterators from the same array.
+    for(int x = 0; x < SIZE; ++x)
+        for(int y = 0; y < SIZE; ++y)
+            std::fill(sides_rendered[x][y], sides_rendered[x][y] + SIZE, 0);
 
     positions_processed.resize(positions.size());
 
@@ -235,6 +244,26 @@ void Chunk::logic(bool ticks_enabled)
                 particles.erase(particles.begin() + i);
         }
     }
+}
+
+void Chunk::releaseGeometry()
+{
+    // Keep blocks and the chunk's world identity; only discard derived mesh
+    // buffers and transient effects so explored areas do not retain every mesh.
+    std::vector<VECTOR3>().swap(positions);
+    std::vector<ProcessedPosition>().swap(positions_processed);
+    std::vector<IndexedVertex>().swap(vertices);
+    std::vector<IndexedVertex>().swap(vertices_quad);
+    std::vector<IndexedVertex>().swap(vertices_color);
+    std::vector<VERTEX>().swap(vertices_unaligned);
+    std::vector<Animation>().swap(animations);
+    std::vector<Particle>().swap(particles);
+
+    for(int x = 0; x < SIZE; ++x)
+        for(int y = 0; y < SIZE; ++y)
+            std::fill(sides_rendered[x][y], sides_rendered[x][y] + SIZE, 0);
+
+    render_dirty = true;
 }
 
 void Chunk::render()
@@ -361,7 +390,10 @@ BLOCK_WDATA Chunk::getLocalBlock(const int x, const int y, const int z) const
 void Chunk::setLocalBlock(const int x, const int y, const int z, const BLOCK_WDATA block, bool set_dirty)
 {
     assert(inBounds(x, y, z));
+    const BLOCK_WDATA previous = blocks[x][y][z];
     blocks[x][y][z] = block;
+    if(blockLightLevel(previous) != blockLightLevel(block))
+        world.markLightingDirty();
     if(!set_dirty)
         return;
 
@@ -576,7 +608,11 @@ enum : uint32_t { SALT_TREE = 0x7EE5, SALT_TREE_KIND = 0x4B1D, SALT_TREE_SHAPE =
 
 void Chunk::generate()
 {
-    std::fill(blocks[0][0] + 0, blocks[SIZE - 1][SIZE - 1] + SIZE, BLOCK_AIR);
+    // BLOCK_WDATA is a three-dimensional array; never form a flat iterator
+    // range across its separate row arrays.
+    for(int x = 0; x < SIZE; ++x)
+        for(int y = 0; y < SIZE; ++y)
+            std::fill(blocks[x][y], blocks[x][y] + SIZE, BLOCK_AIR);
 
     debug("Generating chunk %d:%d:%d...\t", x, y, z);
 

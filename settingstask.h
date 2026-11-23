@@ -14,6 +14,7 @@ public:
         const char **values; //If nullptr, the numeric value is used
         unsigned int values_count;
         unsigned int current_value;
+        unsigned int default_value;
         unsigned int min_value; //Only makes sense if values == nullptr
         unsigned int step;
     };
@@ -27,6 +28,7 @@ public:
         TICKS_ENABLED,
         SHOW_FPS,
         AUTO_JUMP,
+        GAMMA,
     };
 
     SettingsTask();
@@ -38,6 +40,7 @@ public:
     virtual void logic() override;
 
     unsigned int getValue(unsigned int entry) const;
+    void resetToDefaults();
 
     bool loadFromFile(gzFile file, int version);
     bool saveToFile(gzFile file);
@@ -49,7 +52,7 @@ private:
     unsigned int gameModeRow() const { return settings.size(); }
     void change(int direction);
     void close();
-    static constexpr int row_width = 200, row_height = 18, row_gap = 2, rows_top = 22;
+    static constexpr int row_width = 200, row_height = 16, row_gap = 2, rows_top = 22;
 public:
     unsigned int current_selection = 0;
 private:
