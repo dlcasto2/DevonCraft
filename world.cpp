@@ -26,7 +26,7 @@ void World::generateSeed()
     // The previous implementation read an uninitialized word returned by
     // malloc as the seed. Store it directly and initialize it from the RTC.
     seed = platformRtcSeconds() ^ 0x9E3779B9u;
-    printf("Seed: %u\\n", seed);
+    printf("Seed: %u\n", seed);
     perlin_noise.setSeed(seed);
     abyssal_noise.setSeed(seed);
 }
