@@ -202,6 +202,7 @@
                 TriFix r = rstart, g = gstart, b = bstart;
             #endif
 
+#ifdef TEXTURE_SUPPORT
             decltype(z_buffer) z_buf = z_buf_line + x1;
             decltype(screen) screen_buf = screen_buf_line + x1;
             int x = x1;
@@ -248,6 +249,29 @@
                     q += dq;
                 }
             }
+#else
+            decltype(z_buffer) z_buf = z_buf_line + x1;
+            decltype(screen) screen_buf = screen_buf_line + x1;
+            for(int x = x1; x <= x2; x += 1, ++z_buf, ++screen_buf)
+            {
+                if(__builtin_expect(TriFix(*z_buf) > z, true))
+                {
+                    #ifdef INTERPOLATE_COLORS
+                        *screen_buf = colorRGB(r, g, b);
+                    #else
+                        *screen_buf = low->c;
+                    #endif
+                    *z_buf = z;
+                }
+
+                #ifdef INTERPOLATE_COLORS
+                    r += dr;
+                    g += dg;
+                    b += db;
+                #endif
+                z += dz;
+            }
+#endif
         }
 
         xstart += dx_far;
@@ -317,6 +341,7 @@
                 TriFix r = rend, g = gend, b = bend;
             #endif
 
+#ifdef TEXTURE_SUPPORT
             decltype(z_buffer) z_buf = z_buf_line + x1;
             decltype(screen) screen_buf = screen_buf_line + x1;
             int x = x1;
@@ -363,6 +388,29 @@
                     q += dq;
                 }
             }
+#else
+            decltype(z_buffer) z_buf = z_buf_line + x1;
+            decltype(screen) screen_buf = screen_buf_line + x1;
+            for(int x = x1; x <= x2; x += 1, ++z_buf, ++screen_buf)
+            {
+                if(__builtin_expect(TriFix(*z_buf) > z, true))
+                {
+                    #ifdef INTERPOLATE_COLORS
+                        *screen_buf = colorRGB(r, g, b);
+                    #else
+                        *screen_buf = low->c;
+                    #endif
+                    *z_buf = z;
+                }
+
+                #ifdef INTERPOLATE_COLORS
+                    r += dr;
+                    g += dg;
+                    b += db;
+                #endif
+                z += dz;
+            }
+#endif
         }
 
         xstart += dx_far;
