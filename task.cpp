@@ -166,7 +166,6 @@ LoadResult Task::load()
     if(!ret)
     {
         world.clear();
-        #undef LOAD_OR_FAIL
         return LoadResult::UNREADABLE;
     }
 
