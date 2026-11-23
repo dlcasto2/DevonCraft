@@ -34,7 +34,7 @@ public:
     bool intersectsRay(GLFix x, GLFix y, GLFix z, GLFix dx, GLFix dy, GLFix dz, VECTOR3 &result, AABB::SIDE &side, GLFix &dist, bool hit_water_sources) const;
     const PerlinNoise &noiseGenerator() const;
     const AbyssalNoise &abyssalNoiseGenerator() const;
-    uint32_t worldSeed() const { return *seed; }
+    uint32_t worldSeed() const { return seed; }
     void clear();
     void setDirty();
     bool loadFromFile(gzFile file);
