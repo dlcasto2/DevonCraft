@@ -1,6 +1,7 @@
 #ifndef WORLD_H
 #define WORLD_H
 
+#include <cstdint>
 #include <vector>
 #include <list>
 #include <map>
@@ -40,7 +41,9 @@ public:
     bool loadFromFile(gzFile file);
     bool saveToFile(gzFile file) const;
     void render();
-    void setBrightnessAll(int level); //Phase 5 replaces this with per-chunk light
+    void setBrightnessAll(int level); // Base sky brightness.
+    void updateDynamicLighting(int ambient_level, int player_x, int player_y, int player_z, int hand_light_level);
+    void markLightingDirty() { dynamic_light_sources_dirty = true; }
     int fieldOfView() const { return field_of_view; }
     void setFieldOfView(int fov) { field_of_view = fov; loaded = false; }
     Chunk *findChunk(int x, int y, int z) const;
@@ -66,6 +69,13 @@ private:
 
     //If a block in a not yet loaded Chunk has been set, it's stored here until the Chunk has been loaded
     std::vector<BLOCK_CHANGE> pending_block_changes;
+
+    struct DynamicLightSource { int x, y, z; uint8_t level; };
+    static constexpr unsigned int MAX_DYNAMIC_LIGHT_SOURCES = 128;
+    DynamicLightSource dynamic_light_sources[MAX_DYNAMIC_LIGHT_SOURCES] = {};
+    unsigned int dynamic_light_count = 0;
+    unsigned int dynamic_light_refresh_ticks = 0;
+    bool dynamic_light_sources_dirty = true;
 };
 
 extern World world;
