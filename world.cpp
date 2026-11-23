@@ -1,4 +1,5 @@
 #include <random>
+#include <new>
 #include <libndls.h>
 
 #include "blockrenderer.h"
@@ -252,7 +253,7 @@ bool World::loadFromFile(gzFile file)
         LOAD_FROM_FILE(y)
         LOAD_FROM_FILE(z)
 
-        Chunk *c = new Chunk(x, y, z);
+        Chunk *c = new (std::nothrow) Chunk(x, y, z);
         if(!c->loadFromFile(file))
         {
             delete c;
@@ -337,7 +338,7 @@ Chunk* World::generateChunk(int x, int y, int z)
     if(Chunk *c = findChunk(x, y, z + 1))
         c->setDirty();
 
-    Chunk *c = new Chunk(x, y, z);
+    Chunk *c = new (std::nothrow) Chunk(x, y, z);
     if(c == nullptr)
         return c;
 
