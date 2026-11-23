@@ -56,7 +56,7 @@ private:
 
     bool loaded = false;
     int cen_x = 0, cen_y = 0, cen_z = 0;
-    int field_of_view = 3;
+    int field_of_view = 2;
     PerlinNoise perlin_noise;
     AbyssalNoise abyssal_noise;
     unsigned int seed = 0;
