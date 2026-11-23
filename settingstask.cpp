@@ -4,6 +4,7 @@
 #include "uikit.h"
 #include "texturetools.h"
 #include "worldtask.h"
+#include "graphics_preset.h"
 
 
 SettingsTask settings_task;
@@ -22,6 +23,11 @@ const char *speed_values[] = {
 const char *fastmode_values[] = {
     "Off",
     "On"
+};
+
+const char *graphics_values[] = {
+    "Normal",
+    "Low"
 };
 
 const char *world_static_values[] = {
@@ -48,6 +54,9 @@ SettingsTask::SettingsTask()
     // Gamma is a percentage of the neutral 100% curve. Keep it last so
     // existing save files retain the meaning and order of every old setting.
     settings.push_back({"Gamma", nullptr, 201, 100, 100, 50, 10});
+    // Keep this new setting last so existing save indices retain their meaning.
+    settings.push_back({"Graphics", graphics_values, GRAPHICS_CHOICE_COUNT,
+        GRAPHICS_NORMAL, GRAPHICS_NORMAL, 0, 1});
 }
 
 SettingsTask::~SettingsTask()
@@ -150,6 +159,15 @@ void SettingsTask::change(int direction)
 
     if(current_selection == GAMMA)
         nglSetGamma(entry.current_value);
+
+    // A preset applies the existing controls together. They remain separate
+    // rows afterward, so users can fine-tune Low graphics and Distance.
+    if(current_selection == GRAPHICS)
+    {
+        const GraphicsPreset preset = graphicsPreset(entry.current_value);
+        settings[FAST_MODE].current_value = preset.fast_mode;
+        settings[DISTANCE].current_value = preset.distance;
+    }
 
     changed_something = true;
 }
