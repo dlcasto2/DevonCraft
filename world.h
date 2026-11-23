@@ -59,7 +59,7 @@ private:
     int field_of_view = 3;
     PerlinNoise perlin_noise;
     AbyssalNoise abyssal_noise;
-    unsigned int *seed;
+    unsigned int seed = 0;
 
     std::map<std::tuple<int,int,int>,Chunk*> all_chunks;
     std::vector<Chunk*> visible_chunks;
