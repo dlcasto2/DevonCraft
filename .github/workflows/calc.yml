@@ -7,6 +7,12 @@ on:
 permissions:
   contents: read
 
+# Keep only the newest calculator build for this branch. Several commits in
+# quick succession should not queue multiple full Ndless compiler builds.
+concurrency:
+  group: calculator-build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   host-tests:
     runs-on: ubuntu-22.04
