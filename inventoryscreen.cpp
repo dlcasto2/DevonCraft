@@ -9,6 +9,7 @@
 #include "screenmove.h"
 #include "uikit.h"
 #include "worldtask.h"
+#include "progression.h"
 
 InventoryScreen inventory_screen;
 
@@ -127,14 +128,17 @@ void InventoryScreen::craftSelected(bool all)
     const Recipe *r = recipes.selected();
     if(!r)
         return;
+    unsigned crafted = 0;
     if(all)
     {
-        if(craftMax(player_inventory, *r) == 0)
+        crafted = craftMax(player_inventory, *r);
+        if(crafted == 0)
             showMessage(hasIngredients(player_inventory, *r) ? "Inventory full" : "Missing ingredients");
     }
     else switch(craftOnce(player_inventory, *r))
     {
     case CraftResult::OK:
+        crafted = 1;
         break;
     case CraftResult::MISSING:
         showMessage("Missing ingredients");
@@ -142,6 +146,12 @@ void InventoryScreen::craftSelected(bool all)
     case CraftResult::NO_ROOM:
         showMessage("Inventory full");
         break;
+    }
+    if(crafted)
+    {
+        progressionCrafted(r->result, crafted);
+        if(const char *notice = takeProgressNotice())
+            showMessage(notice);
     }
     recipes.refresh(player_inventory, at_table);
 }
@@ -165,6 +175,8 @@ void InventoryScreen::fillFromList()
 void InventoryScreen::takeResult(bool all)
 {
     const int g = gridSize();
+    ItemId crafted_id = 0;
+    unsigned crafted_count = 0;
     do
     {
         const int i = matchGrid(grid, g);
@@ -188,8 +200,16 @@ void InventoryScreen::takeResult(bool all)
             held.count = static_cast<uint8_t>(held.count + out.count);
         else
             break;
+        crafted_id = out.id;
+        ++crafted_count;
         consumeGrid(grid, g);
     } while(all);
+    if(crafted_count)
+    {
+        progressionCrafted(crafted_id, crafted_count);
+        if(const char *notice = takeProgressNotice())
+            showMessage(notice);
+    }
     recipes.refresh(player_inventory, at_table);
 }
 
