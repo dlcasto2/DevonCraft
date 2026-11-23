@@ -21,7 +21,8 @@ public:
 
     unsigned count(ItemId id, uint16_t meta) const;
 
-    ItemStack &selectedStack() { return slots[selected]; }
+    // Corrupt or stale selections must never index outside the 9-slot hotbar.
+    ItemStack &selectedStack() { return slots[selected >= 0 && selected < HOTBAR ? selected : 0]; }
     void clear();
 };
 

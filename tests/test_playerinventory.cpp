@@ -20,6 +20,16 @@ TEST_CASE("remove and count across slots") {
     CHECK(inv.count(ITEM_COAL, 0) == 12); CHECK(inv.remove(ITEM_COAL, 0, 9) == 9);
     CHECK(inv.count(ITEM_COAL, 0) == 3); CHECK(inv.slots[20].empty()); CHECK(inv.slots[0].count == 3);
 }
+TEST_CASE("invalid selected hotbar indexes fall back to slot zero safely") {
+    PlayerInventory inv;
+    inv.slots[0] = ItemStack(ITEM_COAL, 3);
+    inv.selected = 200;
+    CHECK(inv.selectedStack().count == 3);
+    inv.selectedStack() = ItemStack(ITEM_DIAMOND, 1);
+    CHECK(inv.slots[0].id == ITEM_DIAMOND);
+    inv.selected = -1;
+    CHECK(inv.selectedStack().id == ITEM_DIAMOND);
+}
 TEST_CASE("block variants are distinct") {
     PlayerInventory inv;
     inv.add(ItemStack::ofBlock(getBLOCKWDATA(BLOCK_FLOWER, 0)));

@@ -37,7 +37,10 @@ TEST_CASE("v6 inventory converts to creative hotbar") {
 }
 static bool writeB(gzFile f, void *) { return gzputs(f, "B") == 1; }
 static bool writeFail(gzFile, void *) { return false; }
+static bool writeV8(gzFile f, void *) { int v = 8; return gzwrite(f, &v, sizeof v) == sizeof v; }
+static int denyRename(const char *, const char *) { return -1; }
 static void putV6(const char *p) { gzFile f = gzopen(p, "wb"); int v = 6; gzwrite(f, &v, sizeof v); gzclose(f); }
+static void putV7(const char *p) { gzFile f = gzopen(p, "wb"); int v = 7; gzwrite(f, &v, sizeof v); gzclose(f); }
 TEST_CASE("first v7 save keeps a backup") {
     putV6("/tmp/w.map.tns"); remove("/tmp/w.map.bak.tns");
     CHECK(replaceSaveSafely("/tmp/w.map.tns", writeB, nullptr));
@@ -49,4 +52,22 @@ TEST_CASE("failed write keeps old save") {
     putV6("/tmp/w.map.tns");
     CHECK_FALSE(replaceSaveSafely("/tmp/w.map.tns", writeFail, nullptr));
     CHECK(readSaveVersion("/tmp/w.map.tns") == 6); CHECK(readSaveVersion("/tmp/w.map.tmp.tns") == -1);
+}
+TEST_CASE("failed atomic rename never deletes the existing save") {
+    putV7("/tmp/r.map.tns"); remove("/tmp/r.map.tmp.tns");
+    CHECK_FALSE(replaceSaveSafely("/tmp/r.map.tns", writeV8, nullptr, denyRename));
+    CHECK(readSaveVersion("/tmp/r.map.tns") == 7);
+    CHECK(readSaveVersion("/tmp/r.map.tmp.tns") == 8);
+    remove("/tmp/r.map.tns"); remove("/tmp/r.map.tmp.tns");
+}
+TEST_CASE("survival section rejects an out-of-range hotbar selection") {
+    player_state = PlayerState(); world_state = WorldState();
+    player_inventory.clear(); player_inventory.selected = 200;
+    block_storage.clear(); item_piles.clear();
+    gzFile o = gzopen("/tmp/devoncraft_bad_selection.gz", "wb");
+    SaveWriter w(o); CHECK(writeSurvivalSection(w)); gzclose(o);
+    player_inventory.selected = 0;
+    gzFile i = gzopen("/tmp/devoncraft_bad_selection.gz", "rb");
+    SaveReader r(i); CHECK_FALSE(readSurvivalSection(r)); gzclose(i);
+    CHECK(player_inventory.selected == 0);
 }
