@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out DevonCraft
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install host test dependencies
         run: |
@@ -32,13 +32,13 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - name: Check out DevonCraft
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           path: devoncraft
 
       - name: Check out Ndless SDK
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ndless-nspire/Ndless
           ref: r2020
@@ -56,7 +56,7 @@ jobs:
       # is skipped; a cache miss rebuilds and saves it.
       - name: Restore Ndless toolchain cache
         id: toolchain-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ndless/ndless-sdk/toolchain/install
@@ -92,7 +92,7 @@ jobs:
           make STRESS=1 -j"$(nproc)"
 
       - name: Upload calculator executables
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: devoncraft-calculator
           path: |
