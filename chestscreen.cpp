@@ -5,6 +5,7 @@
 #include "entity.h"
 #include "inventoryscreen.h"
 #include "playerinventory.h"
+#include "progression.h"
 #include "screenmove.h"
 #include "uikit.h"
 #include "worldtask.h"
@@ -42,6 +43,7 @@ void ChestScreen::makeCurrent()
 
 void ChestScreen::close()
 {
+    const PlayerInventory before = player_inventory;
     // Whatever is in hand goes back: inventory first, then the chest, then the ground.
     if(!held.empty())
         returnHeld(player_inventory.slots, PlayerInventory::SLOTS, held);
@@ -51,8 +53,8 @@ void ChestScreen::close()
     if(!held.empty())
         spawnDrop(entity_pool, world_task.x, world_task.y + BLOCK_SIZE, world_task.z, held, player_inventory);
     held = ItemStack();
-    world_task.makeCurrent();
-}
+    progressionInventoryDelta(before, player_inventory);
+    world_task.makeCurrent();}
 
 void ChestScreen::render()
 {
@@ -121,6 +123,7 @@ void ChestScreen::logic()
     }
 
     key_held_down = true;
+    const PlayerInventory before = player_inventory;
     ItemStack *inv = player_inventory.slots;
     const bool in_chest = cursor_row < 3;
     ItemStack *slots = in_chest ? chest : inv;
@@ -156,4 +159,6 @@ void ChestScreen::logic()
     }
     else
         key_held_down = false;
+
+    progressionInventoryDelta(before, player_inventory);
 }

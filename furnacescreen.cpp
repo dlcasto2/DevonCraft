@@ -6,6 +6,7 @@
 #include "furnace.h"
 #include "inventoryscreen.h"
 #include "playerinventory.h"
+#include "progression.h"
 #include "screenmove.h"
 #include "uikit.h"
 #include "worldtask.h"
@@ -88,12 +89,14 @@ void FurnaceScreen::makeCurrent()
 
 void FurnaceScreen::close()
 {
+    const PlayerInventory before = player_inventory;
     // Whatever is in hand goes back: inventory first, then the ground.
     if(!held.empty())
         returnHeld(player_inventory.slots, PlayerInventory::SLOTS, held);
     if(!held.empty())
         spawnDrop(entity_pool, world_task.x, world_task.y + BLOCK_SIZE, world_task.z, held, player_inventory);
     held = ItemStack();
+    progressionInventoryDelta(before, player_inventory);
     world_task.makeCurrent();
 }
 
@@ -173,6 +176,7 @@ void FurnaceScreen::logic()
         return;
     }
     ItemStack *top = r->slots.data();
+    const PlayerInventory before = player_inventory;
 
     key_held_down = true;
     const int cols = cursor_row == 0 ? 3 : 9;
@@ -262,4 +266,6 @@ void FurnaceScreen::logic()
     }
     else
         key_held_down = false;
+
+    progressionInventoryDelta(before, player_inventory);
 }

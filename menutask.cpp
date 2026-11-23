@@ -5,18 +5,22 @@
 #include "settingstask.h"
 #include "uikit.h"
 #include "worldtask.h"
+#include "achievementstask.h"
+#include "advancementstask.h"
 
 MenuTask menu_task;
 
 namespace {
 
 const char *const labels[MenuTask::MENU_ITEM_MAX] = {
-    "New World", "Load World", "Save World", "Options...", "Quit without Saving", "Help & Controls"
+    "New World", "Load World", "Save World", "Options...",
+    "Achievements...", "Advancements...", "Quit without Saving", "Help & Controls"
 };
 
 // Buttons in the order they're shown, top to bottom.
 const int order[MenuTask::MENU_ITEM_MAX] = {
-    MenuTask::SAVE_WORLD, MenuTask::LOAD_WORLD, MenuTask::NEW_WORLD, MenuTask::SETTINGS, MenuTask::HELP, MenuTask::EXIT
+    MenuTask::SAVE_WORLD, MenuTask::LOAD_WORLD, MenuTask::NEW_WORLD, MenuTask::SETTINGS,
+    MenuTask::ACHIEVEMENTS, MenuTask::ADVANCEMENTS, MenuTask::HELP, MenuTask::EXIT
 };
 
 int positionOf(int item)
@@ -27,7 +31,7 @@ int positionOf(int item)
     return 0;
 }
 
-constexpr int BUTTON_W = 200, BUTTON_H = 20, BUTTON_GAP = 4, BUTTONS_Y = 68;
+constexpr int BUTTON_W = 220, BUTTON_H = 18, BUTTON_GAP = 3, BUTTONS_Y = 52;
 
 } // namespace
 
@@ -111,6 +115,14 @@ void MenuTask::logic()
 
         case SETTINGS:
             settings_task.makeCurrent();
+            break;
+
+        case ACHIEVEMENTS:
+            achievements_task.makeCurrent();
+            break;
+
+        case ADVANCEMENTS:
+            advancements_task.makeCurrent();
             break;
         }
     }
