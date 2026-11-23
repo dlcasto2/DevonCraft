@@ -105,9 +105,12 @@ void World::setPosition(int x, int y, int z)
     {
         visible_chunks.clear();
 
-        // Keep the selected distance saved, but cap active chunks in Low graphics.
-        int dist = settings_task.getValue(SettingsTask::FAST_MODE)
-                ? std::min(field_of_view, 2) : field_of_view;
+        // The original monochrome CAS has a much tighter memory budget than
+        // CX hardware. Keep its active radius bounded even when Low graphics
+        // is switched off; this prevents large synchronous startup allocations.
+        const bool constrained = is_classic
+            || settings_task.getValue(SettingsTask::FAST_MODE) != 0;
+        const int dist = constrained ? std::min(field_of_view, 2) : field_of_view;
         int distsq = dist*dist;
 
         // Turn the + shape into a cube to load the directly adjacent corners.
