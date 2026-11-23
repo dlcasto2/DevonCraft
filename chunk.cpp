@@ -245,6 +245,26 @@ void Chunk::logic(bool ticks_enabled)
     }
 }
 
+void Chunk::releaseGeometry()
+{
+    // Keep blocks and the chunk's world identity; only discard derived mesh
+    // buffers and transient effects so explored areas do not retain every mesh.
+    std::vector<VECTOR3>().swap(positions);
+    std::vector<ProcessedPosition>().swap(positions_processed);
+    std::vector<IndexedVertex>().swap(vertices);
+    std::vector<IndexedVertex>().swap(vertices_quad);
+    std::vector<IndexedVertex>().swap(vertices_color);
+    std::vector<VERTEX>().swap(vertices_unaligned);
+    std::vector<Animation>().swap(animations);
+    std::vector<Particle>().swap(particles);
+
+    for(int x = 0; x < SIZE; ++x)
+        for(int y = 0; y < SIZE; ++y)
+            std::fill(sides_rendered[x][y], sides_rendered[x][y] + SIZE, 0);
+
+    render_dirty = true;
+}
+
 void Chunk::render()
 {
     if(__builtin_expect(render_dirty, 0))
