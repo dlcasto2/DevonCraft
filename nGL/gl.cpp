@@ -252,8 +252,17 @@ void nglDisplay()
             //Correct gamma before inversion so the LCD polarity operation remains exact.
             COLOR *ptr = screen + SCREEN_HEIGHT*SCREEN_WIDTH;
             COLOR *ptr_inv = screen_inverted + SCREEN_HEIGHT*SCREEN_WIDTH;
-            while(--ptr >= screen)
-                *--ptr_inv = static_cast<COLOR>(~gamma_table.apply(*ptr));
+            if(gamma_percent == 100)
+            {
+                // Preserve the original fast path at the default setting.
+                while(--ptr >= screen)
+                    *--ptr_inv = static_cast<COLOR>(~*ptr);
+            }
+            else
+            {
+                while(--ptr >= screen)
+                    *--ptr_inv = static_cast<COLOR>(~gamma_table.apply(*ptr));
+            }
 
             lcd_blit(screen_inverted, SCR_320x240_16);
         }
