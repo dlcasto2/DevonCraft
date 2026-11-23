@@ -13,6 +13,7 @@
 #include "lighting.h"
 #include "fastmath.h"
 #include "blockrenderer.h"
+#include "blockdefs.h"
 #include "settingstask.h"
 
 //Texture with "Loading" written on it
@@ -104,7 +105,12 @@ void Chunk::buildGeometry()
 {
     drawLoadingtext(8);
 
-    std::fill(pos_indices[0][0] + 0, pos_indices[SIZE][SIZE] + SIZE + 1, -1);
+    // Reset each innermost row separately. Flattening a multidimensional
+    // array into one iterator range crosses array subobjects and is undefined
+    // behavior, which can corrupt the shared vertex-position cache.
+    for(int x = 0; x <= SIZE; ++x)
+        for(int y = 0; y <= SIZE; ++y)
+            std::fill(pos_indices[x][y], pos_indices[x][y] + SIZE + 1, -1);
 
     positions.clear();
     vertices.clear();
@@ -181,7 +187,10 @@ void Chunk::buildGeometry()
         }
     }
 
-    std::fill(sides_rendered[0][0] + 0, sides_rendered[SIZE - 1][SIZE - 1] + SIZE, 0);
+    // As above, clear each row using iterators from the same array.
+    for(int x = 0; x < SIZE; ++x)
+        for(int y = 0; y < SIZE; ++y)
+            std::fill(sides_rendered[x][y], sides_rendered[x][y] + SIZE, 0);
 
     positions_processed.resize(positions.size());
 
@@ -235,6 +244,26 @@ void Chunk::logic(bool ticks_enabled)
                 particles.erase(particles.begin() + i);
         }
     }
+}
+
+void Chunk::releaseGeometry()
+{
+    // Keep blocks and the chunk's world identity; only discard derived mesh
+    // buffers and transient effects so explored areas do not retain every mesh.
+    std::vector<VECTOR3>().swap(positions);
+    std::vector<ProcessedPosition>().swap(positions_processed);
+    std::vector<IndexedVertex>().swap(vertices);
+    std::vector<IndexedVertex>().swap(vertices_quad);
+    std::vector<IndexedVertex>().swap(vertices_color);
+    std::vector<VERTEX>().swap(vertices_unaligned);
+    std::vector<Animation>().swap(animations);
+    std::vector<Particle>().swap(particles);
+
+    for(int x = 0; x < SIZE; ++x)
+        for(int y = 0; y < SIZE; ++y)
+            std::fill(sides_rendered[x][y], sides_rendered[x][y] + SIZE, 0);
+
+    render_dirty = true;
 }
 
 void Chunk::render()
@@ -361,7 +390,10 @@ BLOCK_WDATA Chunk::getLocalBlock(const int x, const int y, const int z) const
 void Chunk::setLocalBlock(const int x, const int y, const int z, const BLOCK_WDATA block, bool set_dirty)
 {
     assert(inBounds(x, y, z));
+    const BLOCK_WDATA previous = blocks[x][y][z];
     blocks[x][y][z] = block;
+    if(blockLightLevel(previous) != blockLightLevel(block))
+        world.markLightingDirty();
     if(!set_dirty)
         return;
 
@@ -576,7 +608,11 @@ enum : uint32_t { SALT_TREE = 0x7EE5, SALT_TREE_KIND = 0x4B1D, SALT_TREE_SHAPE =
 
 void Chunk::generate()
 {
-    std::fill(blocks[0][0] + 0, blocks[SIZE - 1][SIZE - 1] + SIZE, BLOCK_AIR);
+    // BLOCK_WDATA is a three-dimensional array; never form a flat iterator
+    // range across its separate row arrays.
+    for(int x = 0; x < SIZE; ++x)
+        for(int y = 0; y < SIZE; ++y)
+            std::fill(blocks[x][y], blocks[x][y] + SIZE, BLOCK_AIR);
 
     debug("Generating chunk %d:%d:%d...\t", x, y, z);
 
@@ -616,21 +652,33 @@ void Chunk::generate()
             for(int y = 0; y < SIZE; y++)
             {
                 const int world_y = base_y + y;
-                if(this->y == 0 && y == 0)
+                if(this->y == 0 && y == 0 && !in_abyss)
                 {
                     blocks[x][y][z] = BLOCK_BEDROCK;
                     continue;
                 }
 
-                bool solid = world_y <= height;
-                if(!in_abyss && column.overhang > GLFix(0)
-                    && world_y > height - 4 && world_y < height + 4)
+                bool solid;
+                if(in_abyss)
                 {
-                    const GLFix shape = GLFix(height - world_y) / 8
-                        + abyssal.noise3(0, GLFix(base_x + x) / 34,
-                            GLFix(world_y) / 24, GLFix(base_z + z) / 34)
-                            * column.overhang * GLFix(1.2f);
-                    solid = shape > GLFix(0);
+                    // The source leaves the crater open. Sparse 3D density
+                    // pockets form isolated dark/crystal shelves in the void.
+                    solid = column.abyss_distance < GLFix(-3)
+                        && world_y > 5 && world_y < height - 4
+                        && abyssalVoidPocketAt(abyssal, base_x + x, world_y, base_z + z);
+                }
+                else
+                {
+                    solid = world_y <= height;
+                    if(column.overhang > GLFix(0)
+                        && world_y > height - 5 && world_y < height + 5)
+                    {
+                        const GLFix shape = GLFix(height - world_y) / GLFix(3.3333f)
+                            + abyssal.noise3(0, GLFix(base_x + x) / 34,
+                                GLFix(world_y) / 10, GLFix(base_z + z) / 34)
+                                * column.overhang * GLFix(1.2f);
+                        solid = shape > GLFix(0);
+                    }
                 }
 
                 if(!solid)
@@ -644,15 +692,17 @@ void Chunk::generate()
 
                 const int depth = height - world_y + 1;
                 BLOCK material;
-                if(depth <= 1)
+                const uint32_t accent = columnHash(base_x + x, base_z + z, seed, 0xAB5151u) % 1000;
+                if(in_abyss)
+                    material = depth <= 1 && accent < 180 ? BLOCK_DIAMOND : BLOCK_OBSIDIAN;
+                else if(depth <= 1)
                 {
                     material = surface.top;
-                    const uint32_t accent = columnHash(base_x + x, base_z + z, seed, 0xAB5151u) % 1000;
                     if(biome == Biome::ABYSSAL_CRYSTAL && accent < 65)
                         material = BLOCK_GLOWSTONE;
                     else if(biome == Biome::ABYSSAL_CRYSTAL && accent < 150)
                         material = BLOCK_DIAMOND;
-                    else if((biome == Biome::ABYSSAL_RIM || biome == Biome::ABYSSAL_ABYSS) && accent < 45)
+                    else if(biome == Biome::ABYSSAL_RIM && accent < 45)
                         material = BLOCK_GLOWSTONE;
                     else if(biome == Biome::ABYSSAL_ASHLAND && accent < 70)
                         material = BLOCK_OBSIDIAN;

@@ -36,15 +36,18 @@ SettingsTask::SettingsTask()
     //increment savefile_version in task.cpp and add handling to SettingsTask::loadFromFile.
     //Not needed when just adding or removing entries at the end, except when adding after
     //removing entries in the past.
-    settings.push_back({"Leaves", leaves_values, 2, 0, 0, 1});
-    settings.push_back({"Speed", speed_values, 3, 1, 0, 1});
-    settings.push_back({"Distance", nullptr, 10, 2, 1, 1});
+    settings.push_back({"Leaves", leaves_values, 2, 0, 0, 0, 1});
+    settings.push_back({"Speed", speed_values, 3, 1, 1, 0, 1});
+    settings.push_back({"Distance", nullptr, 10, 2, 2, 1, 1});
     // Keep this slot in place: existing saves store it as setting index FAST_MODE.
-    settings.push_back({"Low graphics", fastmode_values, 2, 0, 0, 1});
-    settings.push_back({"Near plane", nullptr, 512+1, 256, 128, 16});
-    settings.push_back({"World", world_static_values, 2, 1, 0, 1});
-    settings.push_back({"Show FPS", fastmode_values, 2, 0, 0, 1});
-    settings.push_back({"Auto-jump", fastmode_values, 2, 1, 0, 1}); //On by default
+    settings.push_back({"Low graphics", fastmode_values, 2, 0, 0, 0, 1});
+    settings.push_back({"Near plane", nullptr, 512+1, 256, 256, 128, 16});
+    settings.push_back({"World", world_static_values, 2, 1, 1, 0, 1});
+    settings.push_back({"Show FPS", fastmode_values, 2, 0, 0, 0, 1});
+    settings.push_back({"Auto-jump", fastmode_values, 2, 1, 1, 0, 1}); //On by default
+    // Gamma is a percentage of the neutral 100% curve. Keep it last so
+    // existing save files retain the meaning and order of every old setting.
+    settings.push_back({"Gamma", nullptr, 201, 100, 100, 50, 10});
 }
 
 SettingsTask::~SettingsTask()
@@ -81,7 +84,12 @@ void SettingsTask::render()
         {
             const SettingsEntry &e = settings[i];
             if(e.values == nullptr)
-                snprintf(label, sizeof(label), "%s: %u", e.name, e.current_value);
+            {
+                if(i == GAMMA)
+                    snprintf(label, sizeof(label), "%s: %u%%", e.name, e.current_value);
+                else
+                    snprintf(label, sizeof(label), "%s: %u", e.name, e.current_value);
+            }
             else
                 snprintf(label, sizeof(label), "%s: %s", e.name, e.values[e.current_value]);
         }
@@ -140,6 +148,9 @@ void SettingsTask::change(int direction)
             entry.current_value = entry.min_value;
     }
 
+    if(current_selection == GAMMA)
+        nglSetGamma(entry.current_value);
+
     changed_something = true;
 }
 
@@ -179,6 +190,17 @@ unsigned int SettingsTask::getValue(unsigned int entry) const
     return settings[entry].current_value;
 }
 
+void SettingsTask::resetToDefaults()
+{
+    for(SettingsEntry &entry : settings)
+        entry.current_value = entry.default_value;
+
+    changed_something = false;
+    world.setFieldOfView(settings[DISTANCE].current_value);
+    nglSetNearPlane(settings[NEARPLANE_Z].current_value);
+    nglSetGamma(settings[GAMMA].current_value);
+}
+
 bool SettingsTask::loadFromFile(gzFile file, int version)
 {
     // If some setting wasn't loaded, it keeps the current value.
@@ -208,6 +230,7 @@ bool SettingsTask::loadFromFile(gzFile file, int version)
     world.setDirty();
 
     nglSetNearPlane(settings[NEARPLANE_Z].current_value);
+    nglSetGamma(settings[GAMMA].current_value);
 
     return true;
 }
