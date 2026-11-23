@@ -20,6 +20,9 @@ struct Entity {
     ItemStack item;
     uint8_t pile_index = 0;
     uint8_t mob_kind = 0;
+    // Passive mobs: duration of the current walk/rest and heading (4 = standing).
+    uint16_t mob_timer = 0;
+    uint8_t mob_heading = 4;
 };
 
 // Fixed storage: never more than CAPACITY moving things, no heap use.
