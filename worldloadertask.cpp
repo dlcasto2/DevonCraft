@@ -224,6 +224,10 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
         has_active_world = false;
         if(restore == LoadResult::UNREADABLE)
             activatePath(chooseSavePath(previous_path, restore));
+        // The old active world is unavailable. Return to the startup picker so
+        // users can still create a fresh slot or leave instead of being trapped.
+        mode = WorldLoaderMode::STARTUP;
+        refreshSlots();
         showStatus("Load failed; previous save kept. Select another world.");
         return;
     }
