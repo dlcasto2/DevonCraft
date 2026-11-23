@@ -189,9 +189,7 @@ void nglPerspective(VERTEX *v)
         v->v = 0;
     }
 
-    v->tex_q = perspectiveReciprocalDepth(v->z, near_plane);
-    v->u_over_z = perspectiveProduct(v->u, v->tex_q);
-    v->v_over_z = perspectiveProduct(v->v, v->tex_q);
+    nglSetPerspectiveTextureAttributes(*v, near_plane);
 }
 
 void nglPerspective(VECTOR3 *v)

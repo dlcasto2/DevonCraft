@@ -17,7 +17,12 @@ static VERTEX perspective(const IndexedVertex &v, ProcessedPosition &p)
         p.perspective_available = true;
     }
 
-    return MAKE_VERTEX(p.perspective, v);
+    VERTEX result = MAKE_VERTEX(p.perspective, v);
+    // p.perspective caches only the projected position. Without these values,
+    // the rasterizer divides zero UV/depth attributes and samples atlas (0, 0)
+    // for every aligned chunk vertex, making all block textures appear black.
+    nglSetPerspectiveTextureAttributes(result, nglGetNearPlane());
+    return result;
 }
 
 static bool drawTriangle(ProcessedPosition *processed, const IndexedVertex &low, const IndexedVertex &middle, const IndexedVertex &high, bool backface_culling)
