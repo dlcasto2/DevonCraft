@@ -108,6 +108,16 @@ struct VERTEX
     TexFix tex_q, u_over_z, v_over_z;
 };
 
+// Calculate the texture attributes required by perspective-correct rasterization.
+// Aligned chunk meshes use cached projected positions, so they must explicitly
+// initialize these fields just like nglPerspective(VERTEX*) does.
+inline void nglSetPerspectiveTextureAttributes(VERTEX &vertex, GLFix near_depth)
+{
+    vertex.tex_q = perspectiveReciprocalDepth(vertex.z, near_depth);
+    vertex.u_over_z = perspectiveProduct(vertex.u, vertex.tex_q);
+    vertex.v_over_z = perspectiveProduct(vertex.v, vertex.tex_q);
+}
+
 struct TEXTURE
 {
     uint16_t width; uint16_t height;
