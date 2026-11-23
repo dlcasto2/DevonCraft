@@ -7,6 +7,8 @@
 #include "aabb.h"
 #include "mining.h"
 
+struct Entity;
+
 class WorldTask : public Task
 {
 public:
@@ -34,6 +36,10 @@ private:
     void crosshairPixel(int x, int y);
     void renderSky();
     void tickMining(bool on_ground);
+    void tickMobs();
+    void trySpawnPassive();
+    void hitMob(Entity &e);
+    Entity *aimedMob(GLFix ox, GLFix oy, GLFix oz, GLFix dx, GLFix dy, GLFix dz, GLFix block_dist);
     bool useBlock(int bx, int by, int bz);          // 7 on a chest, furnace, crafting table, smithing table or bed
     bool useBucket();                               // 7 with a bucket: scoop or pour water
     VECTOR3 besideSelection() const;                // the block against the face being aimed at
@@ -60,6 +66,9 @@ private:
 
     MiningState mining;
     uint32_t drop_rng = 0x5eed;
+    uint32_t mob_rng = 0x6d6f62;
+    int mob_spawn_timer = 0, mob_hit_cooldown = 0;
+    Entity *aim_mob = nullptr;
 
     static constexpr int SLEEP_FADE_TICKS = 40;   // two seconds of fading
     int sleep_ticks = 0, sleep_x = 0, sleep_y = 0, sleep_z = 0;
