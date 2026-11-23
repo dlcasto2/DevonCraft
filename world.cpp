@@ -265,12 +265,21 @@ bool World::loadFromFile(gzFile file)
         LOAD_FROM_FILE(z)
 
         Chunk *c = new (std::nothrow) Chunk(x, y, z);
+        if(!c)
+            return false;
+
         if(!c->loadFromFile(file))
         {
             delete c;
             return false;
         }
-        all_chunks.insert({std::tuple<int,int,int>(x, y, z), c});
+
+        const auto inserted = all_chunks.insert({std::tuple<int,int,int>(x, y, z), c});
+        if(!inserted.second)
+        {
+            delete c;
+            return false;
+        }
     }
 }
 
