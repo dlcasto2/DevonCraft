@@ -732,7 +732,7 @@ void Chunk::generate()
         for(int z = 0; z < SIZE; z++)
         {
             const int height = heights[x + 1][z + 1];
-            const int ground = height - base_y - 1;
+            const int ground = groundLocalY(height, base_y);
             if(ground < 0 || ground >= SIZE || !isDryLand(height))
                 continue;
 
@@ -880,6 +880,11 @@ bool Chunk::placeTree(TreeKind kind, int x, int y, int z, uint32_t rnd)
             room = here == BLOCK_AIR
                     || (is_log && (here == BLOCK_SAPLING || here == BLOCK_LEAVES || here == BLOCK_SPRUCE_LEAVES || here == BLOCK_BIRCH_LEAVES));
         }
+        // Tree shapes place their base trunk block first. If it cannot be
+        // placed, reject the tree rather than leaving a floating crown.
+        if(i == 0 && (!room || t.dx != 0 || t.dy != 0 || t.dz != 0 || t.block != logFor(kind)))
+            return false;
+
         if(room)
             setGlobalBlockRelative(bx, by, bz, t.block);
     }
