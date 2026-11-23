@@ -83,14 +83,17 @@ void World::changeBlock(const int x, const int y, const int z, const BLOCK_WDATA
         pending_block_changes.push_back({chunk_x, chunk_y, chunk_z, local_x, local_y, local_z, block});
 }
 
-void World::setChunkVisible(int x, int y, int z)
+bool World::setChunkVisible(int x, int y, int z)
 {
     Chunk *c = findChunk(x, y, z);
     if(!c)
         c = generateChunk(x, y, z);
 
-    if(c)
-        visible_chunks.push_back(c);
+    if(!c)
+        return false;
+
+    visible_chunks.push_back(c);
+    return true;
 }
 
 void World::setPosition(int x, int y, int z)
@@ -118,6 +121,7 @@ void World::setPosition(int x, int y, int z)
         if(distsq == 1)
             distsq = 3;
 
+        bool all_chunks_ready = true;
         for(int x = -dist; x <= dist; ++x)
             for(int y = -dist; y <= dist; ++y)
                 for(int z = -dist; z <= dist; ++z)
@@ -128,14 +132,17 @@ void World::setPosition(int x, int y, int z)
                     if(x*x + y*y + z*z > distsq)
                         continue;
 
-                    setChunkVisible(chunk_x + x, chunk_y + y, chunk_z + z);
+                    if(!setChunkVisible(chunk_x + x, chunk_y + y, chunk_z + z))
+                        all_chunks_ready = false;
                 }
 
         cen_x = chunk_x;
         cen_y = chunk_y;
         cen_z = chunk_z;
 
-        loaded = true;
+        // If an allocation failed, retry the missing chunks on the next
+        // logic pass instead of permanently accepting an incomplete region.
+        loaded = all_chunks_ready;
     }
 }
 
