@@ -27,6 +27,7 @@ public:
         TICKS_ENABLED,
         SHOW_FPS,
         AUTO_JUMP,
+        GAMMA,
     };
 
     SettingsTask();
@@ -49,7 +50,7 @@ private:
     unsigned int gameModeRow() const { return settings.size(); }
     void change(int direction);
     void close();
-    static constexpr int row_width = 200, row_height = 18, row_gap = 2, rows_top = 22;
+    static constexpr int row_width = 200, row_height = 16, row_gap = 2, rows_top = 22;
 public:
     unsigned int current_selection = 0;
 private:

@@ -45,6 +45,9 @@ SettingsTask::SettingsTask()
     settings.push_back({"World", world_static_values, 2, 1, 0, 1});
     settings.push_back({"Show FPS", fastmode_values, 2, 0, 0, 1});
     settings.push_back({"Auto-jump", fastmode_values, 2, 1, 0, 1}); //On by default
+    // Gamma is a percentage of the neutral 100% curve. Keep it last so
+    // existing save files retain the meaning and order of every old setting.
+    settings.push_back({"Gamma", nullptr, 201, 100, 50, 10});
 }
 
 SettingsTask::~SettingsTask()
@@ -81,7 +84,12 @@ void SettingsTask::render()
         {
             const SettingsEntry &e = settings[i];
             if(e.values == nullptr)
-                snprintf(label, sizeof(label), "%s: %u", e.name, e.current_value);
+            {
+                if(i == GAMMA)
+                    snprintf(label, sizeof(label), "%s: %u%%", e.name, e.current_value);
+                else
+                    snprintf(label, sizeof(label), "%s: %u", e.name, e.current_value);
+            }
             else
                 snprintf(label, sizeof(label), "%s: %s", e.name, e.values[e.current_value]);
         }
@@ -139,6 +147,9 @@ void SettingsTask::change(int direction)
         if(entry.current_value >= entry.values_count)
             entry.current_value = entry.min_value;
     }
+
+    if(current_selection == GAMMA)
+        nglSetGamma(entry.current_value);
 
     changed_something = true;
 }
@@ -208,6 +219,7 @@ bool SettingsTask::loadFromFile(gzFile file, int version)
     world.setDirty();
 
     nglSetNearPlane(settings[NEARPLANE_Z].current_value);
+    nglSetGamma(settings[GAMMA].current_value);
 
     return true;
 }

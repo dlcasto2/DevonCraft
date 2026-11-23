@@ -7,7 +7,7 @@ TEST_SRCS = $(wildcard test_*.cpp)
 EXTRA_SRCS = ngl_stubs.cpp
 
 run_tests: test_main.cpp $(TEST_SRCS) $(EXTRA_SRCS) $(addprefix ../,$(HOST_SRCS))
-	$(CXX) $(CXXFLAGS) $^ -lz -o $@
+	$(CXX) $(CXXFLAGS) $^ -lz -lm -o $@
 
 test: run_tests
 	./run_tests

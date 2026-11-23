@@ -1,6 +1,7 @@
 #include <ctime>
 #include <utility>
 #include <algorithm>
+#include <new>
 
 #ifdef _TINSPIRE
 #include <libndls.h>
@@ -13,6 +14,7 @@ static SDL_Surface *scr;
 
 #include "gl.h"
 #include "fastmath.h"
+#include "gamma.h"
 
 #define M(m, y, x) (m.data[y][x])
 #define P(m, y, x) (m->data[y][x])
@@ -28,7 +30,9 @@ static unsigned int vertices_count = 0;
 static VERTEX vertices[4];
 static GLDrawMode draw_mode = GL_TRIANGLES;
 static bool is_monochrome;
-static COLOR *screen_inverted; //For monochrome calcs
+static COLOR *screen_inverted; //Also used as a gamma-corrected display buffer
+static GammaTable gamma_table;
+static unsigned int gamma_percent = 100;
 #ifdef FPS_COUNTER
     volatile unsigned int fps;
 #endif
@@ -218,23 +222,59 @@ void nglSetBuffer(COLOR *screenBuf)
     screen = screenBuf;
 }
 
+void nglSetGamma(unsigned int percent)
+{
+    if(percent < 50) percent = 50;
+    if(percent > 200) percent = 200;
+
+#ifdef _TINSPIRE
+    // Classic monochrome calculators already own this 16-bit staging buffer
+    // for LCD polarity inversion, so gamma adds no extra RAM on the target.
+    // Color calculators allocate it only when a non-neutral curve is needed.
+    if(!is_monochrome && percent != 100 && !screen_inverted)
+    {
+        screen_inverted = new(std::nothrow) COLOR[SCREEN_WIDTH * SCREEN_HEIGHT];
+        if(!screen_inverted)
+            percent = 100; // Keep rendering safely if the optional buffer cannot fit.
+    }
+#endif
+
+    gamma_percent = percent;
+    gamma_table.set(percent);
+}
+
 void nglDisplay()
 {
     #ifdef _TINSPIRE
         if(is_monochrome)
         {
-            //Flip everything, as 0xFFFF is white on CX, but black on classic
-            COLOR *ptr = screen + SCREEN_HEIGHT*SCREEN_WIDTH, *ptr_inv = screen_inverted + SCREEN_HEIGHT*SCREEN_WIDTH;
+            //Flip everything, as 0xFFFF is white on CX, but black on classic.
+            //Correct gamma before inversion so the LCD polarity operation remains exact.
+            COLOR *ptr = screen + SCREEN_HEIGHT*SCREEN_WIDTH;
+            COLOR *ptr_inv = screen_inverted + SCREEN_HEIGHT*SCREEN_WIDTH;
             while(--ptr >= screen)
-                *--ptr_inv = ~*ptr;
+                *--ptr_inv = static_cast<COLOR>(~gamma_table.apply(*ptr));
 
             lcd_blit(screen_inverted, SCR_320x240_16);
+        }
+        else if(gamma_percent != 100 && screen_inverted)
+        {
+            const unsigned int count = SCREEN_WIDTH * SCREEN_HEIGHT;
+            for(unsigned int i = 0; i < count; ++i)
+                screen_inverted[i] = gamma_table.apply(screen[i]);
+            lcd_blit(screen_inverted, SCR_320x240_565);
         }
         else
             lcd_blit(screen, SCR_320x240_565);
     #else
         SDL_LockSurface(scr);
-        std::copy(screen, screen + SCREEN_HEIGHT*SCREEN_WIDTH, reinterpret_cast<COLOR*>(scr->pixels));
+        COLOR *display = reinterpret_cast<COLOR*>(scr->pixels);
+        const unsigned int count = SCREEN_WIDTH * SCREEN_HEIGHT;
+        if(gamma_percent == 100)
+            std::copy(screen, screen + count, display);
+        else
+            for(unsigned int i = 0; i < count; ++i)
+                display[i] = gamma_table.apply(screen[i]);
         SDL_UnlockSurface(scr);
         SDL_UpdateRect(scr, 0, 0, 0, 0);
     #endif

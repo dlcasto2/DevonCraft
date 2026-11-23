@@ -108,6 +108,8 @@ void nglUninit();
 //The buffer to render to
 void nglSetBuffer(COLOR *screenBuf);
 void nglSetNearPlane(const GLFix near_plane);
+// Display gamma as a percentage: 100 is neutral, 50 is darker, 200 is brighter.
+void nglSetGamma(unsigned int percent);
 GLFix nglGetNearPlane();
 GLFix nglZBufferAt(const unsigned int x, const unsigned int y);
 //Display the buffer
