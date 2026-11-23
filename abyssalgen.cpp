@@ -21,8 +21,17 @@ GLFix lerpFix(GLFix a, GLFix b, GLFix t)
 
 GLFix smooth(GLFix edge0, GLFix edge1, GLFix x)
 {
-    GLFix t = clampFix((x - edge0) / (edge1 - edge0), GLFix(0), GLFix(1));
-    return t * t * (GLFix(3) - GLFix(2) * t);
+    // GLFix division left-shifts its 32-bit numerator by 8 bits. For large
+    // distances that overflows even though the final smoothstep is simply 0.
+    // Calculate this one bounded interpolation ratio in float instead.
+    const float denominator = static_cast<float>(edge1) - static_cast<float>(edge0);
+    if(denominator == 0.0f)
+        return x < edge0 ? GLFix(0) : GLFix(1);
+
+    float t = (static_cast<float>(x) - static_cast<float>(edge0)) / denominator;
+    if(t < 0.0f) t = 0.0f;
+    if(t > 1.0f) t = 1.0f;
+    return GLFix(t * t * (3.0f - 2.0f * t));
 }
 
 GLFix length2D(GLFix x, GLFix z)

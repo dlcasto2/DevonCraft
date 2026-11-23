@@ -17,6 +17,16 @@ TEST_CASE("Abyssal terrain is deterministic and stays inside calculator world he
         }
 }
 
+TEST_CASE("far terrain coordinates do not overflow smoothstep into the Dead Zone") {
+    AbyssalNoise noise(123456);
+    const AbyssalColumn at_30000 = abyssalColumnAt(noise, 30000, 0);
+    const AbyssalColumn at_33000 = abyssalColumnAt(noise, 33000, 0);
+    CHECK(at_30000.dead < GLFix(0.5f));
+    CHECK(at_33000.dead < GLFix(0.5f));
+    CHECK(at_30000.biome != Biome::ABYSSAL_DEAD);
+    CHECK(at_33000.biome != Biome::ABYSSAL_DEAD);
+}
+
 TEST_CASE("Abyss and Dead Zone landmarks are generated from the world seed") {
     AbyssalNoise noise(123456);
     const AbyssalNoise::Anchor &abyss = noise.abyss();

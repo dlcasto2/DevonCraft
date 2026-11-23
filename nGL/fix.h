@@ -10,12 +10,18 @@
 template <unsigned int s, typename T=int_fast32_t> class Fix
 {   
 public:
+    static constexpr int64_t scaleFactor() { return static_cast<int64_t>(1) << s; }
+    template <typename U> static constexpr T scaleInteger(U v)
+    {
+        return static_cast<T>(static_cast<int64_t>(v) * scaleFactor());
+    }
+
     constexpr Fix() : value(0) {}
-    template <unsigned int s2, typename T2> Fix(const Fix<s2, T2> f) : value((s2 > s) ? (f.value >> (s2 - s)) : (f.value << (s-s2))) {}
+    template <unsigned int s2, typename T2> Fix(const Fix<s2, T2> f) : value((s2 > s) ? (f.value >> (s2 - s)) : scaleInteger(f.value)) {}
     constexpr Fix(const float v) : value(static_cast<T>(v * static_cast<float>(1<<s))) {}
-    constexpr Fix(const unsigned int v) : value(v << s) {}
-    constexpr Fix(const int v) : value(static_cast<unsigned int>(v) << s) {}
-    constexpr Fix(const long int v) : value(static_cast<unsigned long int>(v) << s) {}
+    constexpr Fix(const unsigned int v) : value(scaleInteger(v)) {}
+    constexpr Fix(const int v) : value(scaleInteger(v)) {}
+    constexpr Fix(const long int v) : value(scaleInteger(v)) {}
     constexpr operator float() const { return toFloat(); }
     constexpr operator int() const { return toInteger<int>(); }
     constexpr operator unsigned int() const { return toInteger<unsigned int>(); }
@@ -24,7 +30,7 @@ public:
     T round() const { T ret = value >> (s-1); return (ret>>1) + (ret&1); }
     constexpr T floor() const { return value >> s; }
 
-    Fix<s,T> wholes() const { Fix<s,T> ret; ret.value = value & ~((1<<s)-1); return ret; }
+    Fix<s,T> wholes() const { Fix<s,T> ret; ret.value = value & ~static_cast<T>(scaleFactor()-1); return ret; }
 
     Fix<s,T> operator -() const { Fix<s,T> ret; ret.value = -value; return ret; }
     Fix<s,T>& operator +() const { return *this; }
@@ -33,18 +39,30 @@ public:
     Fix<s,T>& operator --() { value -= 1 << s; return *this; }
 
     template <typename U> Fix<s,T> operator >>(const U other) const { Fix<s,T> ret; ret.value = value >> other; return ret; }
-    template <typename U> Fix<s,T> operator <<(const U other) const { Fix<s,T> ret; ret.value = value << other; return ret; }
+    template <typename U> Fix<s,T> operator <<(const U other) const
+    {
+        Fix<s,T> ret;
+        const int shift = static_cast<int>(other);
+        if(shift < 0 || shift >= 63) { ret.value = 0; return ret; }
+        ret.value = static_cast<T>(static_cast<int64_t>(value) * (static_cast<int64_t>(1) << shift));
+        return ret;
+    }
 
     Fix<s,T> operator +(const Fix<s,T>& other) const { Fix<s,T> ret; ret.value = value + other.value; return ret; }
-    template <typename U> Fix<s,T> operator +(const U other) const { Fix<s,T> ret; ret.value = value + (other<<s); return ret; }
+    template <typename U> Fix<s,T> operator +(const U other) const { Fix<s,T> ret; ret.value = value + scaleInteger(other); return ret; }
 
     Fix<s,T> operator -(const Fix<s,T>& other) const { Fix<s,T> ret; ret.value = value - other.value; return ret; }
-    template <typename U> Fix<s,T> operator -(const U other) const { Fix<s,T> ret; ret.value = value - (other<<s); return ret; }
+    template <typename U> Fix<s,T> operator -(const U other) const { Fix<s,T> ret; ret.value = value - scaleInteger(other); return ret; }
 
     template <unsigned int s2, typename T2> Fix<s,T> operator *(const Fix<s2,T2>& other) const { Fix<s,T> ret; ret.value = (value * other.value) >> s2; return ret; }
     template <typename U> Fix<s,T> operator *(const U other) const { Fix<s,T> ret; ret.value = value * other; return ret; }
 
-    Fix<s,T> operator /(const Fix<s,T>& other) const { Fix<s,T> ret; ret.value = (value << s) / other.value; return ret; }
+    Fix<s,T> operator /(const Fix<s,T>& other) const
+    {
+        Fix<s,T> ret;
+        ret.value = static_cast<T>((static_cast<int64_t>(value) * scaleFactor()) / static_cast<int64_t>(other.value));
+        return ret;
+    }
     template <typename U> Fix<s,T> operator /(const U other) const { Fix<s,T> ret; ret.value = value / other; return ret; }
 
     Fix<s,T>& operator +=(const Fix<s,T>& other) { value += other.value; return *this; }
@@ -54,11 +72,15 @@ public:
     Fix<s,T>& operator *=(const Fix<s,T>& other) { value = (value * other.value) >> s; return *this; }
     Fix<s,T>& operator /=(const float other) { value /= other; return *this; }
     Fix<s,T>& operator /=(const int other) { value /= other; return *this; }
-    Fix<s,T>& operator /=(const Fix<s,T>& other) { value = (value << s) / other.value; return *this; }
+    Fix<s,T>& operator /=(const Fix<s,T>& other)
+    {
+        value = static_cast<T>((static_cast<int64_t>(value) * scaleFactor()) / static_cast<int64_t>(other.value));
+        return *this;
+    }
 
     constexpr bool operator >(const Fix<s,T>& other) const { return value > other.value; }
     constexpr bool operator <(const Fix<s,T>& other) const { return value < other.value; }
-    template <typename U> constexpr bool operator >=(const U other) const { return value >= other<<s; }
+    template <typename U> constexpr bool operator >=(const U other) const { return value >= scaleInteger(other); }
     constexpr bool operator >=(const Fix<s,T>& other) const { return value >= other.value; }
     constexpr bool operator <=(const Fix<s,T>& other) const { return value <= other.value; }
     constexpr bool operator ==(const Fix<s,T>& other) const { return value == other.value; }
@@ -78,7 +100,7 @@ public:
     template <typename U>
     void fromInteger(const U v)
     {
-        value = v << s;
+        value = scaleInteger(v);
     }
 
     void fromFloat(const float v)
