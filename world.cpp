@@ -112,9 +112,11 @@ void World::setPosition(int x, int y, int z)
         // The original monochrome CAS has a much tighter memory budget than
         // CX hardware. Keep its active radius bounded even when Low graphics
         // is switched off; this prevents large synchronous startup allocations.
-        const bool constrained = is_classic
-            || settings_task.getValue(SettingsTask::FAST_MODE) != 0;
-        const int dist = constrained ? std::min(field_of_view, 2) : field_of_view;
+        const bool low_graphics = settings_task.getValue(SettingsTask::FAST_MODE) != 0;
+        // Preserve the classic calculator's tighter memory cap; CX Low graphics
+        // uses the radius-3 preset from main.
+        const int dist = is_classic ? std::min(field_of_view, 2)
+            : (low_graphics ? std::min(field_of_view, 3) : field_of_view);
         int distsq = dist*dist;
 
         // Turn the + shape into a cube to load the directly adjacent corners.

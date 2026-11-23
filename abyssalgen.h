@@ -3,10 +3,10 @@
 
 #include <cstdint>
 
-#include "perlinnoise.h"
+#include "gl.h"
 #include "biome.h"
 
-// Seeded noise fields and deterministic landmarks adapted from
+// Seeded Simplex fields and deterministic Origin-world landmarks adapted from
 // db-v2/public/games/abyssal-transcendence/index.html.
 class AbyssalNoise
 {
@@ -27,9 +27,18 @@ public:
     const Anchor &lake(unsigned int i) const { return lake_anchors[i & 1]; }
 
 private:
-    const PerlinNoise &field(unsigned int index) const;
+    struct NoiseField {
+        void setSeed(uint32_t seed);
+        GLFix noise2(GLFix x, GLFix z) const;
+        GLFix noise3(GLFix x, GLFix y, GLFix z) const;
 
-    PerlinNoise nA, nB, nC, nD, nE, nF;
+        uint8_t perm[512];
+        uint8_t grad[512];
+    };
+
+    const NoiseField &field(unsigned int index) const;
+
+    NoiseField nA, nB, nC, nD, nE, nF;
     Anchor abyss_anchor{}, dead_anchor{}, lake_anchors[2]{};
 };
 
@@ -42,13 +51,13 @@ struct AbyssalColumn {
     GLFix moisture;
 };
 
-// Height, biome and regional fields for one world column. World height is
-// compressed for DevonCraft's 40-block build limit; horizontal scales and
-// the source's seeded continent/ridge/rivers/lakes/region logic are retained.
+// Height, biome and regional fields for one world column. DevonCraft keeps
+// its 8x8 chunks and 40-block height, so vertical amplitudes are compressed.
 AbyssalColumn abyssalColumnAt(const AbyssalNoise &noise, int x, int z);
 
-// The source's 3D cave-density test, sampled directly instead of building
-// the browser generator's larger trilinear density grids.
+// Source 3D Simplex density tests, sampled directly to avoid allocating the
+// browser generator's larger trilinear density grids on the calculator.
 bool abyssalCaveAt(const AbyssalNoise &noise, int x, int y, int z);
+bool abyssalVoidPocketAt(const AbyssalNoise &noise, int x, int y, int z);
 
 #endif // ABYSSALGEN_H
