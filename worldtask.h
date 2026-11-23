@@ -51,9 +51,12 @@ private:
     int tp_last_x = 0, tp_last_y = 0;
     GLFix vy = 0; //Y-Velocity for gravity and jumps
     bool in_water = false;
+    bool creative_flight = false;
+    bool jump_key_was_down = false;
+    unsigned char jump_tap_ticks = 0; // Window for the second press of 5.
 
     int8_t input_forward = 0, input_strafe = 0; //Set by logic(), used by tick()
-    bool input_jump = false, input_mine = false;
+    bool input_jump = false, input_descend = false, input_mine = false;
 
     MiningState mining;
     uint32_t drop_rng = 0x5eed;
