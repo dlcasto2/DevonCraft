@@ -64,6 +64,12 @@ static int clamp8(int value)
 
 static COLOR rgb565(int red, int green, int blue)
 {
+    // Apply a uniform +15% brightness lift to generated block materials.
+    // Integer rounding keeps the result deterministic on the ARM calculator.
+    red = (red * 115 + 50) / 100;
+    green = (green * 115 + 50) / 100;
+    blue = (blue * 115 + 50) / 100;
+
     return static_cast<COLOR>(
         ((clamp8(red) & 0xF8) << 8) |
         ((clamp8(green) & 0xFC) << 3) |
