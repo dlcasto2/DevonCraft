@@ -13,6 +13,7 @@
 #include "lighting.h"
 #include "fastmath.h"
 #include "blockrenderer.h"
+#include "blockdefs.h"
 #include "settingstask.h"
 
 //Texture with "Loading" written on it
@@ -389,7 +390,10 @@ BLOCK_WDATA Chunk::getLocalBlock(const int x, const int y, const int z) const
 void Chunk::setLocalBlock(const int x, const int y, const int z, const BLOCK_WDATA block, bool set_dirty)
 {
     assert(inBounds(x, y, z));
+    const BLOCK_WDATA previous = blocks[x][y][z];
     blocks[x][y][z] = block;
+    if(blockLightLevel(previous) != blockLightLevel(block))
+        world.markLightingDirty();
     if(!set_dirty)
         return;
 

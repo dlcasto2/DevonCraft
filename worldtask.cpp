@@ -7,6 +7,7 @@
 #include "stresstest.h"
 #include "platform_time.h"
 #include "lighting.h"
+#include "blockdefs.h"
 #include "gamestate.h"
 #include "furnace.h"
 #include "furnacescreen.h"
@@ -445,7 +446,25 @@ void WorldTask::tick()
     }
 
     world_state.time_of_day = (world_state.time_of_day + 1) % DAY_TICKS;
-    world.setBrightnessAll(skyBrightnessLevel(world_state.time_of_day));
+    const int ambient_light = skyBrightnessLevel(world_state.time_of_day);
+    world.setBrightnessAll(ambient_light);
+
+    #ifndef STRESS_TEST
+        const ItemStack &held_light = player_inventory.selectedStack();
+        int hand_light_level = 0;
+        if(!held_light.empty() && isBlockItem(held_light.id) && held_light.id <= BLOCK_SPECIAL_LAST)
+        {
+            const BLOCK held_block = static_cast<BLOCK>(held_light.id);
+            hand_light_level = blockDef(held_block).light;
+            if(held_block == BLOCK_REDSTONE_LAMP && (held_light.meta & 1u) == 0)
+                hand_light_level = 0;
+        }
+        world.updateDynamicLighting(ambient_light,
+                                    (x / BLOCK_SIZE).floor(),
+                                    (y / BLOCK_SIZE).floor(),
+                                    (z / BLOCK_SIZE).floor(),
+                                    hand_light_level);
+    #endif
 
     #ifdef STRESS_TEST
         if(!stress_spawned)
