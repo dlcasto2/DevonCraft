@@ -109,6 +109,46 @@ int readSaveVersion(const char *path)
     return read == sizeof(version) ? version : -2;
 }
 
+static bool copyFile(const std::string &source_path, const std::string &destination_path)
+{
+    FILE *source = fopen(source_path.c_str(), "rb");
+    if(!source)
+        return false;
+
+    FILE *destination = fopen(destination_path.c_str(), "wb");
+    if(!destination)
+    {
+        fclose(source);
+        return false;
+    }
+
+    char buffer[1024];
+    bool ok = true;
+    for(;;)
+    {
+        const size_t count = fread(buffer, 1, sizeof(buffer), source);
+        if(count && fwrite(buffer, 1, count, destination) != count)
+        {
+            ok = false;
+            break;
+        }
+        if(count < sizeof(buffer))
+        {
+            if(ferror(source))
+                ok = false;
+            break;
+        }
+    }
+
+    if(fclose(source) != 0)
+        ok = false;
+    if(fclose(destination) != 0)
+        ok = false;
+    if(!ok)
+        remove(destination_path.c_str());
+    return ok;
+}
+
 bool replaceSaveSafely(const std::string &path, bool (*write)(gzFile, void *), void *ctx,
                        SaveRenameFunction rename_function)
 {
@@ -130,11 +170,15 @@ bool replaceSaveSafely(const std::string &path, bool (*write)(gzFile, void *), v
     const int existing = readSaveVersion(path.c_str());
     const std::string backup = backupPathFor(path);
     if(existing >= 0 && existing < 7 && readSaveVersion(backup.c_str()) == -1)
-        if(move_file(path.c_str(), backup.c_str()) != 0)
+    {
+        // Copy, do not move: if the replacement rename fails, the old save
+        // remains usable at its original path as well as in the one-time backup.
+        if(!copyFile(path, backup))
         {
             remove(temp.c_str());
             return false;
         }
+    }
 
     // On replacement failure retain the original save and the completed .tmp.
     if(move_file(temp.c_str(), path.c_str()) != 0)
