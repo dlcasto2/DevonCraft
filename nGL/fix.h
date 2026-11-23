@@ -17,7 +17,9 @@ public:
     }
 
     constexpr Fix() : value(0) {}
-    template <unsigned int s2, typename T2> Fix(const Fix<s2, T2> f) : value((s2 > s) ? (f.value >> (s2 - s)) : scaleInteger(f.value)) {}
+    template <unsigned int s2, typename T2> Fix(const Fix<s2, T2> f)
+        : value((s2 > s) ? (f.value >> (s2 - s))
+                         : static_cast<T>(static_cast<int64_t>(f.value) * (static_cast<int64_t>(1) << (s - s2)))) {}
     constexpr Fix(const float v) : value(static_cast<T>(v * static_cast<float>(1<<s))) {}
     constexpr Fix(const unsigned int v) : value(scaleInteger(v)) {}
     constexpr Fix(const int v) : value(scaleInteger(v)) {}
