@@ -14,6 +14,7 @@ public:
         const char **values; //If nullptr, the numeric value is used
         unsigned int values_count;
         unsigned int current_value;
+        unsigned int default_value;
         unsigned int min_value; //Only makes sense if values == nullptr
         unsigned int step;
     };
@@ -39,6 +40,7 @@ public:
     virtual void logic() override;
 
     unsigned int getValue(unsigned int entry) const;
+    void resetToDefaults();
 
     bool loadFromFile(gzFile file, int version);
     bool saveToFile(gzFile file);

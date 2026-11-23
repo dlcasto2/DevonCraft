@@ -87,9 +87,9 @@ static constexpr int savefile_version = 7;
 #define LOAD_FROM_FILE(var) if(gzfread(&var, sizeof(var), 1, file) != 1) { gzclose(file); return false; }
 #define SAVE_TO_FILE(var) if(gzfwrite(&var, sizeof(var), 1, file) != 1) { gzclose(file); return false; }
 
-LoadResult Task::load()
+static LoadResult loadUnchecked()
 {
-    gzFile file = gzopen(savefile, "rb");
+    gzFile file = gzopen(Task::savefile, "rb");
     if(!file)
         return LoadResult::MISSING;
 
@@ -178,6 +178,23 @@ LoadResult Task::load()
     #undef LOAD_OR_FAIL
 
     return LoadResult::OK;
+}
+
+LoadResult Task::load()
+{
+    const LoadResult result = loadUnchecked();
+    if(result == LoadResult::UNREADABLE)
+    {
+        // Loading mutates globals as sections are decoded. If any later section
+        // is truncated or corrupt, discard all partial player/world/settings
+        // state before main() creates the replacement .new world.
+        player_state = PlayerState();
+        world_state = WorldState();
+        settings_task.resetToDefaults();
+        block_list_task.current_selection = 0;
+        world_task.resetWorld();
+    }
+    return result;
 }
 
 bool Task::save()
