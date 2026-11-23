@@ -50,6 +50,7 @@ What's new so far
 - **Game clock:** fixed 20 ticks per second, independent of frame rate.
 - **Entities:** up to 32 entities with physics and collision.
 - **Achievements and advancements:** persistent unlocks for inventory, gathering wood, crafting, mining stone, tools, furnaces, iron, diamonds, beds and building. Open either screen from the game menu. Advancement criteria can be met early and complete automatically once their parent advancement is unlocked.
+- **World loader:** eight separate world slots. The first slot keeps the existing DevonCraft/Crafti save path; seven additional slots use independent save files. Startup opens the world selector, and the menu can load or create worlds in empty slots. Switching worlds saves the current world first. Unreadable saves are left untouched.
 - **Saves:** new save format (v8) with an automatic backup. Existing v7 worlds and older v6 worlds still load; existing worlds start with empty progression.
 - **Lighting:** 8 brightness levels for the coming day/night cycle.
 - **Auto-jump:** walks you up one-block steps.
@@ -105,7 +106,7 @@ Controls
 | enter | | Send a stack to the other section / on the result slot or in the recipe list, craft as many as you can |
 | tab | | Switch between the slots and the recipe list |
 | menu | Game menu | Back |
-| 8 / 2 | | Move through achievements or advancements |
+| 8 / 2 | | Move through achievements, advancements or the world list |
 | esc | Save and quit | Close |
 | + / - | View distance | |
 | ctrl + . | Screenshot | |
