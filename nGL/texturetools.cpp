@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <memory>
+#include <limits>
 
 #include "gl.h"
 #include "texturetools.h"
@@ -64,6 +65,14 @@ struct RGBA32 {
     uint8_t a;
 } __attribute__((packed));
 
+static bool validTextureDimensions(const unsigned int width, const unsigned int height)
+{
+    return width > 0 && height > 0
+        && width <= std::numeric_limits<uint16_t>::max()
+        && height <= std::numeric_limits<uint16_t>::max()
+        && width <= std::numeric_limits<unsigned int>::max() / height;
+}
+
 static bool skip_space(FILE *file)
 {
     char c;
@@ -123,7 +132,7 @@ static TEXTURE* loadTextureFromFile_P7(FILE *texture_file)
             break;
     }
 
-    if(width == 0 || height == 0)
+    if(!validTextureDimensions(width, height))
         return nullptr;
 
     texture = newTexture(width, height);
@@ -134,7 +143,10 @@ static TEXTURE* loadTextureFromFile_P7(FILE *texture_file)
     buffer.reset(new RGBA32[pixels]);
 
     if(fread(buffer.get(), sizeof(buffer[0]), pixels, texture_file) != pixels)
-        return texture;
+    {
+        deleteTexture(texture);
+        return nullptr;
+    }
 
     //Convert to RGB565
     ptr16 = texture->bitmap;
@@ -199,6 +211,9 @@ TEXTURE* loadTextureFromFile(const char* filename)
     if(fscanf(texture_file, "%u", &pixel_max) != 1 || pixel_max != 255)
         return texture;
 
+    if(!validTextureDimensions(width, height))
+        return nullptr;
+
     if(!skip_space(texture_file))
         return texture;
 
@@ -212,7 +227,8 @@ TEXTURE* loadTextureFromFile(const char* filename)
     if(fread(buffer, sizeof(RGB24), pixels, texture_file) != pixels)
     {
         delete[] buffer;
-        return texture;
+        deleteTexture(texture);
+        return nullptr;
     }
 
     //Convert to RGB565

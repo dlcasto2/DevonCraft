@@ -2,7 +2,7 @@
 # Paths in HOST_SRCS are relative to the repository root.
 CXX ?= g++
 CXXFLAGS = -std=c++11 -fno-rtti -Wall -Wextra -g -I.. -I../nGL -I.
-HOST_SRCS = gameclock.cpp items.cpp blockdefs.cpp playerinventory.cpp physics.cpp entity.cpp mobs.cpp aabb.cpp saveio.cpp blockstorage.cpp itempile.cpp gamestate.cpp savefile.cpp progression.cpp player_motion.cpp nGL/fastmath.cpp lighting.cpp stresstest.cpp screenmove.cpp daylight.cpp mining.cpp drops.cpp oregen.cpp containers.cpp crafting.cpp furnace.cpp water.cpp biome.cpp abyssalgen.cpp trees.cpp perlinnoise.cpp graphics_preset.cpp
+HOST_SRCS = gameclock.cpp items.cpp blockdefs.cpp playerinventory.cpp physics.cpp entity.cpp mobs.cpp aabb.cpp saveio.cpp blockstorage.cpp itempile.cpp gamestate.cpp savefile.cpp progression.cpp player_motion.cpp nGL/fastmath.cpp nGL/texturetools.cpp lighting.cpp stresstest.cpp screenmove.cpp daylight.cpp mining.cpp drops.cpp oregen.cpp containers.cpp crafting.cpp furnace.cpp water.cpp biome.cpp abyssalgen.cpp trees.cpp perlinnoise.cpp graphics_preset.cpp
 TEST_SRCS = $(wildcard test_*.cpp)
 EXTRA_SRCS = ngl_stubs.cpp
 

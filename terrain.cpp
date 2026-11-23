@@ -160,13 +160,35 @@ static void makeWaterOpaque(TEXTURE &texture, const int x, const int y, const in
         }
 }
 
+static bool isCompatibleTerrainAtlas(const TEXTURE &texture)
+{
+    const unsigned int width = texture.width;
+    const unsigned int height = texture.height;
+    const unsigned int cell_width = width / 16;
+    const unsigned int cell_height = height / 16;
+
+    // The block atlas is a 16x16 grid of square cells. Reject truncated,
+    // undersized, or mismatched external atlases before any cell indexing.
+    return width >= 48 && height >= 48
+        && width % 16 == 0 && height % 16 == 0
+        && cell_width == cell_height;
+}
+
 void terrainInit(const char *texture_path)
 {
-    terrain_current = loadTextureFromFile(texture_path);
-    if(!terrain_current)
-        terrain_current = &terrain; //Use default, included texture
-    else
+    TEXTURE *external_texture = texture_path ? loadTextureFromFile(texture_path) : nullptr;
+    if(external_texture && !isCompatibleTerrainAtlas(*external_texture))
+    {
+        puts("External terrain atlas has incompatible dimensions; using bundled atlas.");
+        deleteTexture(external_texture);
+        external_texture = nullptr;
+    }
+
+    terrain_current = external_texture ? external_texture : &terrain;
+    if(external_texture)
         puts("External texture loaded!");
+    else if(texture_path)
+        puts("External terrain atlas unavailable; using bundled atlas.");
 
     int fields_x = 16;
     int fields_y = 16;
