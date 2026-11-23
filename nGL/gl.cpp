@@ -188,6 +188,10 @@ void nglPerspective(VERTEX *v)
         printf("Warning: Texture coord out of bounds!\n");
         v->v = 0;
     }
+
+    v->tex_q = perspectiveReciprocalDepth(v->z, near_plane);
+    v->u_over_z = perspectiveProduct(v->u, v->tex_q);
+    v->v_over_z = perspectiveProduct(v->v, v->tex_q);
 }
 
 void nglPerspective(VECTOR3 *v)
@@ -483,6 +487,10 @@ static void interpolateVertexXLeft(const VERTEX *from, const VERTEX *to, VERTEX 
     res->u = res->u.wholes();
     res->v = from->v + (to->v - from->v) * t;
     res->v = res->v.wholes();
+    const TexFix tex_t(t);
+    res->tex_q = perspectiveLerp(from->tex_q, to->tex_q, tex_t);
+    res->u_over_z = perspectiveLerp(from->u_over_z, to->u_over_z, tex_t);
+    res->v_over_z = perspectiveLerp(from->v_over_z, to->v_over_z, tex_t);
 #endif
 
 #ifdef INTERPOLATE_COLORS
@@ -556,6 +564,10 @@ static void interpolateVertexXRight(const VERTEX *from, const VERTEX *to, VERTEX
     res->u = res->u.wholes();
     res->v = from->v + (to->v - from->v) * t;
     res->v = res->v.wholes();
+    const TexFix tex_t(t);
+    res->tex_q = perspectiveLerp(from->tex_q, to->tex_q, tex_t);
+    res->u_over_z = perspectiveLerp(from->u_over_z, to->u_over_z, tex_t);
+    res->v_over_z = perspectiveLerp(from->v_over_z, to->v_over_z, tex_t);
 #endif
 
 #ifdef INTERPOLATE_COLORS
