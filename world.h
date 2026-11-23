@@ -52,7 +52,7 @@ public:
 
 private:
     Chunk *generateChunk(int x, int y, int z);
-    void setChunkVisible(int x, int y, int z);
+    bool setChunkVisible(int x, int y, int z);
 
     bool loaded = false;
     int cen_x = 0, cen_y = 0, cen_z = 0;
