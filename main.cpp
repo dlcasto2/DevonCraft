@@ -63,16 +63,19 @@ int main(int argc, char *argv[])
     // If only an old Crafti save exists, load it in place instead of overwriting or
     // silently moving it; users can keep playing without losing their existing world.
     const char *default_save_path = "/documents/ndless/devoncraft.map.tns";
-    bool using_legacy_save = false;
     if(argc <= 1 && access(default_save_path, F_OK) != 0
        && access("/documents/ndless/crafti.map.tns", F_OK) == 0)
     {
         default_save_path = "/documents/ndless/crafti.map.tns";
-        using_legacy_save = true;
     }
     Task::initializeGlobals(argc > 1 ? argv[1] : default_save_path);
 
     current_inventory.resetToDefaults();
+
+    #ifndef _TINSPIRE
+        const bool verify_fixture = getenv("DEVONCRAFT_VERIFY_FIXTURE") != nullptr;
+        const bool save_on_exit = getenv("DEVONCRAFT_SAVE_ON_EXIT") != nullptr;
+    #endif
 
     // Choose a save slot before entering the game. Slot 1 keeps the historical
     // DevonCraft/Crafti save path; the loader supplies seven additional slots.
