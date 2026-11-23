@@ -83,6 +83,9 @@ int main(int argc, char *argv[])
         break;
     case LoadResult::UNREADABLE:
     {
+        // Discard partial state from an unreadable save before starting fresh.
+        world_task.resetWorld();
+
         // Never overwrite an unreadable save: switch to the .new path.
         // Static so the string outlives every later use of Task::savefile.
         // (strdup is POSIX and hidden by -std=c++11 on the calculator.)
