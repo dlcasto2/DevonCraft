@@ -278,6 +278,38 @@ bool saveTextureToFile(const TEXTURE &texture, const char *filename)
     return ret;
 }
 
+bool textureAtlasCellHasVisibleContent(const TEXTURE &texture, const unsigned int cell_x, const unsigned int cell_y, const unsigned int columns, const unsigned int rows)
+{
+    if(columns == 0 || rows == 0 || texture.width % columns != 0 || texture.height % rows != 0)
+        return false;
+
+    const unsigned int cell_width = texture.width / columns;
+    const unsigned int cell_height = texture.height / rows;
+    if(cell_x >= columns || cell_y >= rows || cell_width == 0 || cell_height == 0)
+        return false;
+
+    const unsigned int total = cell_width * cell_height;
+    unsigned int visible = 0;
+    unsigned int lit = 0;
+    for(unsigned int y = cell_y * cell_height; y < (cell_y + 1) * cell_height; ++y)
+        for(unsigned int x = cell_x * cell_width; x < (cell_x + 1) * cell_width; ++x)
+        {
+            const COLOR pixel = texture.bitmap[x + y * texture.width];
+            if(texture.has_transparency && pixel == texture.transparent_color)
+                continue;
+
+            ++visible;
+            const unsigned int red = (pixel >> 11) & 0x1F;
+            const unsigned int green = (pixel >> 5) & 0x3F;
+            const unsigned int blue = pixel & 0x1F;
+            // A small weighted RGB565 brightness measure; all-black cells fail.
+            if(red * 2 + green + blue * 2 >= 16)
+                ++lit;
+        }
+
+    return visible * 4 >= total * 3 && lit * 3 >= total;
+}
+
 TextureAtlasEntry textureArea(const unsigned int x, const unsigned int y, const unsigned int w, const unsigned int h)
 {
     return TextureAtlasEntry{
