@@ -113,11 +113,11 @@ bool buildHouse(Chunk &chunk, const PerlinNoise &noise, const Palette &palette,
     preparePlatform(chunk, noise, center_x, center_z, 2, 2,
                     floor_y, palette.foundation, palette.floor);
 
-    // Clear the nine interior columns and the doorway before furnishing it.
-    for(int dx = -1; dx <= 1; ++dx)
-        for(int dz = -1; dz <= 1; ++dz)
-            clearInterior(chunk, noise, center_x + dx, center_z + dz, floor_y, 3);
-    clearInterior(chunk, noise, center_x, center_z + 2, floor_y, 3);
+    // Clear the full footprint above the ground first. This removes trees
+    // even when an adjacent chunk was generated before the village anchor.
+    for(int dx = -2; dx <= 2; ++dx)
+        for(int dz = -2; dz <= 2; ++dz)
+            clearInterior(chunk, noise, center_x + dx, center_z + dz, floor_y, 6);
 
     for(int dx = -2; dx <= 2; ++dx)
         for(int dz = -2; dz <= 2; ++dz)
@@ -176,8 +176,8 @@ void roadTile(Chunk &chunk, const PerlinNoise &noise, const Palette &palette,
     const int y = surfaceY(noise, x, z);
     if(y <= SEA_LEVEL)
         return;
-    put(chunk, x, y + 1, z, BLOCK_AIR);
-    put(chunk, x, y + 2, z, BLOCK_AIR);
+    for(int clear_y = 1; clear_y <= 4; ++clear_y)
+        put(chunk, x, y + clear_y, z, BLOCK_AIR);
     put(chunk, x, y, z, palette.road);
 }
 
@@ -211,7 +211,7 @@ void buildWell(Chunk &chunk, const PerlinNoise &noise, const Palette &palette,
 
     for(int dx = -1; dx <= 1; ++dx)
         for(int dz = -1; dz <= 1; ++dz)
-            clearInterior(chunk, noise, site.x + dx, site.z + dz, floor_y, 3);
+            clearInterior(chunk, noise, site.x + dx, site.z + dz, floor_y, 4);
 
     for(int dx = -1; dx <= 1; ++dx)
         for(int dz = -1; dz <= 1; ++dz)
@@ -249,7 +249,7 @@ void buildFarm(Chunk &chunk, const PerlinNoise &noise, const Palette &palette,
         {
             const int x = farm_x + dx, z = farm_z + dz;
             const int top = surfaceY(noise, x, z);
-            for(int y = std::max(top + 1, floor_y + 1); y <= floor_y + 1; ++y)
+            for(int y = std::max(top + 1, floor_y + 1); y <= floor_y + 4; ++y)
                 put(chunk, x, y, z, BLOCK_AIR);
 
             const bool edge = std::abs(dx) == 3 || std::abs(dz) == 2;

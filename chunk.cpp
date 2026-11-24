@@ -676,10 +676,6 @@ void Chunk::generate()
     // Gold, emerald and Ancient Debris (new chunks only: loaded ones skip generate()).
     generateOres(blocks, this->x, this->y, this->z, seed);
 
-    // Settlements are deterministic world structures; their blocks are queued
-    // into neighbouring chunks when those chunks have not been generated yet.
-    generateChunkVillages(*this, noise, seed);
-
     // Trees, flowers, cacti and dead bushes, on columns whose ground is in this chunk.
     int trunks = 0, trunk_x[SIZE * SIZE], trunk_z[SIZE * SIZE];
     for(int x = 0; x < SIZE; x++)
@@ -730,6 +726,10 @@ void Chunk::generate()
             else if(top == BLOCK_SAND && columnHash(gx, gz, seed, SALT_BUSH) % 1000 < f.dead_bushes)
                 setGlobalBlockRelative(x, ground + 1, z, getBLOCKWDATA(BLOCK_FLOWER, FLOWER_DEAD_BUSH));
         }
+
+    // Place settlements after natural decorations so buildings replace any
+    // trees that happened to grow on their footprints.
+    generateChunkVillages(*this, noise, seed);
 
     debug("Done!\n");
 }
