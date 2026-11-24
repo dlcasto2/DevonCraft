@@ -46,8 +46,8 @@ bool villageSiteSuitable(const PerlinNoise &noise, const VillageSite &site)
 
     int minimum = MAX_GROUND;
     int maximum = 0;
-    for(int dx = -16; dx <= 16; dx += 8)
-        for(int dz = -16; dz <= 16; dz += 8)
+    for(int dx = -16; dx <= 16; dx += 4)
+        for(int dz = -16; dz <= 16; dz += 4)
         {
             const int height = groundHeight(noise, site.x + dx, site.z + dz);
             // groundHeight is the first air block; the block below it is soil.
@@ -57,6 +57,8 @@ bool villageSiteSuitable(const PerlinNoise &noise, const VillageSite &site)
             if(height > maximum) maximum = height;
         }
 
-    // A settlement needs a broadly level clearing, not a cliff or shoreline.
-    return maximum - minimum <= 4 && maximum <= MAX_GROUND;
+    // The village generator builds foundations and clears the pads, so mild
+    // slopes are suitable. Reject only ground too uneven to level safely.
+    return villageTerrainVariationAllowed(minimum, maximum)
+        && maximum <= MAX_GROUND;
 }
