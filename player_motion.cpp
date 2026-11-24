@@ -61,14 +61,18 @@ static void swimTick(const CollisionQuery &world, AABB &box, PlayerMotion &m, co
 void playerTick(const CollisionQuery &world, AABB &box, PlayerMotion &m, const PlayerInput &in,
                 GLFix yaw, GLFix walk_per_tick, bool auto_jump)
 {
+    // Decide whether the player is swimming before applying the land sprint boost.
+    m.swimming = world.touchesWater(swimBox(box));
+    const GLFix movement_speed = in.sprint && in.forward > 0 && !m.swimming
+                               ? walk_per_tick * 13 / 10
+                               : walk_per_tick;
+
     // Forward is (sin yaw, cos yaw); right is 90 degrees off.
     const GLFix fwd_x = fast_sin(yaw), fwd_z = fast_cos(yaw);
     const GLFix right_x = fast_sin((yaw + 90).normaliseAngle()), right_z = fast_cos((yaw + 90).normaliseAngle());
 
-    const GLFix dx = (fwd_x * in.forward + right_x * in.strafe) * walk_per_tick;
-    const GLFix dz = (fwd_z * in.forward + right_z * in.strafe) * walk_per_tick;
-
-    m.swimming = world.touchesWater(swimBox(box));
+    const GLFix dx = (fwd_x * in.forward + right_x * in.strafe) * movement_speed;
+    const GLFix dz = (fwd_z * in.forward + right_z * in.strafe) * movement_speed;
     if(m.swimming)
         return swimTick(world, box, m, in, dx, dz);
 

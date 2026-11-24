@@ -8,7 +8,7 @@ HelpTask help_task;
 namespace {
 
 const char *const controls[][2] = {
-    { "8 4 6 2", "Walk (auto-jump climbs steps)" },
+    { "8 4 6 2", "Walk (Ctrl + 8 to sprint)" },
     { "5", "Jump (hold in water to swim up)" },
     { "7", "Place, use bucket/furnace/chest/bed" },
     { "9", "Break block (hold in survival)" },
