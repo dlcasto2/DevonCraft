@@ -59,3 +59,25 @@ TEST_CASE("village candidate frequency is controlled by the seeded grid") {
     CHECK(candidates > 5600);
     CHECK(candidates < 6400);
 }
+
+TEST_CASE("village foundations accept gentle terrain and reject steep ground") {
+    CHECK(villageTerrainVariationAllowed(12, 12));
+    CHECK(villageTerrainVariationAllowed(12, 16));
+    CHECK(villageTerrainVariationAllowed(12, 20));
+    CHECK_FALSE(villageTerrainVariationAllowed(12, 21));
+    CHECK_FALSE(villageTerrainVariationAllowed(20, 12));
+}
+
+TEST_CASE("seeded overworld terrain produces suitable village sites") {
+    PerlinNoise noise(12345u);
+    int suitable = 0;
+    for(int x = -20; x <= 20; ++x)
+        for(int z = -20; z <= 20; ++z)
+        {
+            VillageSite site = {};
+            if(villageSiteForCell(x, z, 12345u, site)
+               && villageSiteSuitable(noise, site))
+                ++suitable;
+        }
+    CHECK(suitable > 0);
+}
