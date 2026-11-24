@@ -144,11 +144,11 @@ constexpr int positionToBlock(int pos)
     return pos >> 7;
 }
 
-// Ground height is the world Y index of the topmost solid block. Convert that
-// block into the owning chunk's local index; decorations start at localY + 1.
-constexpr int groundLocalY(int ground_world_y, int chunk_base_y)
+// ground_height is the first air block above the column. The top solid
+// surface is one block below it; decorations start at groundLocalY + 1.
+constexpr int groundLocalY(int ground_height, int chunk_base_y)
 {
-    return ground_world_y - chunk_base_y;
+    return ground_height - chunk_base_y - 1;
 }
 
 //There may be more than one resolution, so compute TextureAtlasEntries for both

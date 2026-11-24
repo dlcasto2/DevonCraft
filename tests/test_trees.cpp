@@ -85,21 +85,27 @@ TEST_CASE("every kind has its own wood and leaves") {
 
 
 TEST_CASE("terrain decorations use the actual surface block and begin one block above it") {
-    // Surface heights cover every vertical chunk boundary in the 40-block world.
-    for(int surface_y = 3; surface_y <= 36; ++surface_y)
+    // groundHeight is the first air block, so the surface is groundHeight - 1.
+    // Cover every vertical chunk boundary in the 40-block world.
+    for(int ground_height = 3; ground_height <= 36; ++ground_height)
     {
         int owning_chunks = 0;
         for(int chunk_y = 0; chunk_y < 5; ++chunk_y)
         {
             const int chunk_base_y = chunk_y * 8;
-            const int ground = groundLocalY(surface_y, chunk_base_y);
+            const int ground = groundLocalY(ground_height, chunk_base_y);
             if(ground >= 0 && ground < 8)
             {
                 ++owning_chunks;
-                CHECK(chunk_base_y + ground == surface_y);
-                CHECK(chunk_base_y + ground + 1 == surface_y + 1);
+                CHECK(chunk_base_y + ground == ground_height - 1);
+                CHECK(chunk_base_y + ground + 1 == ground_height);
             }
         }
         CHECK(owning_chunks == 1);
     }
+
+    // At an exact chunk boundary, the solid top belongs to the chunk below.
+    CHECK(groundLocalY(8, 0) == 7);
+    CHECK(groundLocalY(8, 8) == -1);
+    CHECK(groundLocalY(9, 8) == 0);
 }
