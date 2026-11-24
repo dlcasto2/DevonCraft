@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 
+#include "mobs.h"
 #include "playerinventory.h"
 #include "progression.h"
 #include "trader.h"
