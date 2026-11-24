@@ -77,7 +77,8 @@ bool platformLevel(const PerlinNoise &noise, int center_x, int center_z,
         }
 
     floor_y = maximum;
-    return maximum - minimum <= 4 && floor_y + 6 < World::HEIGHT * Chunk::SIZE;
+    return villageTerrainVariationAllowed(minimum, maximum)
+        && floor_y + 6 < World::HEIGHT * Chunk::SIZE;
 }
 
 void preparePlatform(Chunk &chunk, const PerlinNoise &noise,
