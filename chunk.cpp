@@ -10,6 +10,7 @@
 #include "water.h"
 #include "biome.h"
 #include "trees.h"
+#include "villagegen.h"
 #include "lighting.h"
 #include "fastmath.h"
 #include "blockrenderer.h"
@@ -725,6 +726,10 @@ void Chunk::generate()
             else if(top == BLOCK_SAND && columnHash(gx, gz, seed, SALT_BUSH) % 1000 < f.dead_bushes)
                 setGlobalBlockRelative(x, ground + 1, z, getBLOCKWDATA(BLOCK_FLOWER, FLOWER_DEAD_BUSH));
         }
+
+    // Place settlements after natural decorations so buildings replace any
+    // trees that happened to grow on their footprints.
+    generateChunkVillages(*this, noise, seed);
 
     debug("Done!\n");
 }
