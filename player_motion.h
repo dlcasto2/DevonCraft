@@ -14,7 +14,7 @@ struct PlayerInput {
     int8_t forward;   // -1, 0, 1
     int8_t strafe;
     bool jump;
-    bool sprint;      // Ctrl held while moving forward
+    bool sprint;      // second press of forward key held after a double-tap
 };
 
 struct PlayerMotion {
@@ -27,6 +27,48 @@ struct PlayerMotion {
 // box less 0.4 blocks at the top and bottom. Rising past the surface ends
 // the swim with your feet about 0.4 blocks under it.
 AABB swimBox(const AABB &player_box);
+
+// A forward double-tap activates sprint while the second press stays held.
+// The tap window is measured in simulation ticks (0.6 seconds at 20 TPS).
+class DoubleTapSprint {
+public:
+    bool update(bool key_down)
+    {
+        const bool pressed = key_down && !key_was_down;
+        key_was_down = key_down;
+        if(pressed)
+        {
+            if(tap_window_ticks > 0)
+            {
+                sprinting = true;
+                tap_window_ticks = 0;
+            }
+            else
+                tap_window_ticks = 12;
+        }
+        if(!key_down)
+            sprinting = false;
+        return sprinting;
+    }
+
+    void tick()
+    {
+        if(tap_window_ticks > 0)
+            --tap_window_ticks;
+    }
+
+    void reset()
+    {
+        tap_window_ticks = 0;
+        key_was_down = false;
+        sprinting = false;
+    }
+
+private:
+    uint8_t tap_window_ticks = 0;
+    bool key_was_down = false;
+    bool sprinting = false;
+};
 
 // One tick of player physics: walk by (forward, strafe) at yaw, jump, gravity,
 // then collision. auto_jump hops one-block steps (Task 12). In water the

@@ -92,7 +92,7 @@ void WorldTask::logic()
     // Record this frame's movement intent; tick() applies physics.
     input_forward = keyPressed(KEY_NSPIRE_8) ? 1 : (keyPressed(KEY_NSPIRE_2) ? -1 : 0);
     input_strafe = keyPressed(KEY_NSPIRE_6) ? 1 : (keyPressed(KEY_NSPIRE_4) ? -1 : 0);
-    input_sprint = keyPressed(KEY_NSPIRE_CTRL) && input_forward > 0;
+    input_sprint = sprint_input_state.update(keyPressed(KEY_NSPIRE_8)) && input_forward > 0;
 
     const bool jump_down = keyPressed(KEY_NSPIRE_5);
     input_jump = jump_down;
@@ -425,6 +425,7 @@ void WorldTask::tick()
 {
     if(jump_tap_ticks > 0)
         --jump_tap_ticks;
+    sprint_input_state.tick();
 
     // Build the physics box from the current position, run one tick, read it back.
     AABB box{x - player_width/2, y, z - player_width/2, x + player_width/2, y + player_height, z + player_width/2};
@@ -1129,6 +1130,7 @@ void WorldTask::resetWorld()
     creative_flight = false;
     jump_key_was_down = false;
     jump_tap_ticks = 0;
+    sprint_input_state.reset();
     input_jump = input_sprint = input_descend = false;
     world_state.trader_next_visit = 0;
 }

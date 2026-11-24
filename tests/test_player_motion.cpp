@@ -18,6 +18,36 @@ TEST_CASE("walking forward at yaw 0 moves along +z") {
     playerTick(w, box, m, PlayerInput{1, 0, false}, GLFix(0), GLFix(10), false);
     CHECK((box.low_z - z0).floor() >= 9); CHECK((box.low_z - z0).floor() <= 10);
 }
+TEST_CASE("double-tap forward activates sprint only while the second press is held") {
+    DoubleTapSprint sprint;
+
+    CHECK_FALSE(sprint.update(true));  // first press only starts the tap window
+    CHECK_FALSE(sprint.update(true));  // holding the key is not another tap
+    CHECK_FALSE(sprint.update(false)); // release between taps
+    sprint.tick();
+    sprint.tick();
+    CHECK(sprint.update(true));        // second press activates sprint
+    CHECK(sprint.update(true));        // holding the second press keeps sprint active
+    CHECK_FALSE(sprint.update(false)); // releasing forward ends sprint
+}
+
+TEST_CASE("double-tap sprint expires when the second press is too late") {
+    DoubleTapSprint sprint;
+    CHECK_FALSE(sprint.update(true));
+    CHECK_FALSE(sprint.update(false));
+    for(int i = 0; i < 12; ++i)
+        sprint.tick();
+    CHECK_FALSE(sprint.update(true)); // this is a new first press, not a sprint
+}
+
+TEST_CASE("double-tap sprint reset clears pending taps and active state") {
+    DoubleTapSprint sprint;
+    CHECK_FALSE(sprint.update(true));
+    sprint.reset();
+    CHECK_FALSE(sprint.update(false));
+    CHECK_FALSE(sprint.update(true));
+}
+
 TEST_CASE("holding sprint with forward increases ground speed by 30 percent") {
     GridWorld w = floorWorld();
     AABB walking = playerBoxAt(64, 128, 64), sprinting = playerBoxAt(64, 128, 64);

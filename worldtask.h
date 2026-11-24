@@ -6,6 +6,7 @@
 #include "gl.h"
 #include "aabb.h"
 #include "mining.h"
+#include "player_motion.h"
 
 struct Entity;
 
@@ -61,6 +62,7 @@ private:
     bool creative_flight = false;
     bool jump_key_was_down = false;
     unsigned char jump_tap_ticks = 0; // Window for the second press of 5.
+    DoubleTapSprint sprint_input_state;
 
     int8_t input_forward = 0, input_strafe = 0; //Set by logic(), used by tick()
     bool input_jump = false, input_sprint = false, input_descend = false, input_mine = false;
