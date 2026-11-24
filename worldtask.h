@@ -38,6 +38,7 @@ private:
     void tickMining(bool on_ground);
     void tickMobs();
     void trySpawnPassive();
+    bool trySpawnTrader();
     void hitMob(Entity &e);
     Entity *aimedMob(GLFix ox, GLFix oy, GLFix oz, GLFix dx, GLFix dy, GLFix dz, GLFix block_dist);
     bool useBlock(int bx, int by, int bz);          // 7 on a chest, furnace, crafting table, smithing table or bed

@@ -10,7 +10,7 @@
 // of type MOB whose mob_kind says which animal it is. Mobs are not saved, so a
 // reload starts without them, the same as dropped items.
 
-enum MobKind : uint8_t { MOB_PIG = 0, MOB_COW, MOB_KIND_COUNT };
+enum MobKind : uint8_t { MOB_PIG = 0, MOB_COW, MOB_TRADER, MOB_KIND_COUNT };
 
 constexpr int MOB_MAX_PASSIVE = 6;             // most passive mobs in the world at once
 constexpr int MOB_SPAWN_INTERVAL_TICKS = 200;  // ten seconds between spawn tries
@@ -31,6 +31,10 @@ uint32_t mobRandom(uint32_t &rng);
 // Spawns a mob of this kind in the box; nullptr when the pool is full.
 Entity *spawnPassive(EntityPool &pool, uint8_t kind, const AABB &box);
 int countPassive(const EntityPool &pool);
+ 
+// Wandering traders share the passive mob wandering and rendering path.
+Entity *spawnTrader(EntityPool &pool, const AABB &box);
+int countTraders(const EntityPool &pool);
 
 // Takes damage; true when the mob dies.
 bool hurtMob(Entity &e, int damage);

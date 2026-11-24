@@ -27,5 +27,5 @@ TEST_CASE("free changes otherwise") {
 TEST_CASE("new state defaults") {
     PlayerState s; CHECK(s.health == 20); CHECK(s.hunger == 20); CHECK(s.saturation_x100 == 500);
     CHECK(s.air_ticks == 300); CHECK(s.mode == GameMode::CREATIVE);
-    WorldState w; CHECK(w.time_of_day == 1000); CHECK(w.difficulty == Difficulty::NORMAL);
+    WorldState w; CHECK(w.time_of_day == 1000); CHECK(w.difficulty == Difficulty::NORMAL); CHECK(w.trader_next_visit == 0);
 }

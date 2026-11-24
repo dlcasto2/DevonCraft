@@ -35,7 +35,7 @@ struct WorldState {
     uint32_t time_of_day = 1000;
     Difficulty difficulty = Difficulty::NORMAL;
     bool hardcore = false, hardcore_dead = false;
-    uint32_t trader_next_visit = 0;
+    uint32_t trader_next_visit = 0; // World ticks until the next visit; trader entities are not saved.
 };
 
 extern PlayerState player_state;
