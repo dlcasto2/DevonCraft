@@ -10,6 +10,7 @@
 #include "water.h"
 #include "biome.h"
 #include "trees.h"
+#include "villagegen.h"
 #include "lighting.h"
 #include "fastmath.h"
 #include "blockrenderer.h"
@@ -674,6 +675,10 @@ void Chunk::generate()
 
     // Gold, emerald and Ancient Debris (new chunks only: loaded ones skip generate()).
     generateOres(blocks, this->x, this->y, this->z, seed);
+
+    // Settlements are deterministic world structures; their blocks are queued
+    // into neighbouring chunks when those chunks have not been generated yet.
+    generateChunkVillages(*this, noise, seed);
 
     // Trees, flowers, cacti and dead bushes, on columns whose ground is in this chunk.
     int trunks = 0, trunk_x[SIZE * SIZE], trunk_z[SIZE * SIZE];
