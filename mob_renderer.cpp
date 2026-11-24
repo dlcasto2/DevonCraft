@@ -177,13 +177,74 @@ void cow(const Entity &mob)
     cuboid(mob, 0, b(49), -b(41), b(6), b(6), b(5), {4,4,4,4,4,4});
 }
 
+void trader(const Entity &mob)
+{
+    const FaceSet robe = {0, 0, 2, 1, 1, 2};
+    const FaceSet sleeve = {1, 1, 0, 0, 1, 2};
+    const FaceSet hood = {6, 6, 6, 6, 6, 6};
+    const FaceSet face = {5, 5, 5, 5, 5, 5};
+    const FaceSet belt = {3, 3, 3, 3, 3, 3};
+    const FaceSet boot = {4, 4, 4, 4, 4, 4};
+    const FaceSet eye = {4, 4, 4, 4, 4, 4};
+
+    // Long blue-green robe, belt and two hanging sleeves.
+    cuboid(mob, 0, b(80), 0, b(64), b(94), b(46), robe);
+    cuboid(mob, 0, b(43), b(1), b(66), b(9), b(49), belt);
+    cuboid(mob, -b(39), b(78), 0, b(17), b(68), b(20), sleeve);
+    cuboid(mob,  b(39), b(78), 0, b(17), b(68), b(20), sleeve);
+
+    // Hooded head and the characteristic long villager nose.
+    cuboid(mob, 0, b(143), 0, b(43), b(43), b(42), face);
+    cuboid(mob, 0, b(168), -b(1), b(54), b(12), b(48), hood);
+    cuboid(mob, 0, b(142), b(27), b(9), b(12), b(17), {3,3,3,3,3,3});
+    cuboid(mob, -b(12), b(151), b(21), b(5), b(5), b(3), eye);
+    cuboid(mob,  b(12), b(151), b(21), b(5), b(5), b(3), eye);
+
+    // Boots below the robe.
+    cuboid(mob, -b(18), b(11), 0, b(19), b(22), b(25), boot);
+    cuboid(mob,  b(18), b(11), 0, b(19), b(22), b(25), boot);
+}
+
+const TEXTURE &traderTexture()
+{
+    static const COLOR palette[8] = {
+        0x2D5A, 0x3E7D, 0x1B34, 0x9A45,
+        0x5203, 0xD6B2, 0xB58D, 0xE71C
+    };
+    static COLOR pixels[64 * 32];
+    static TEXTURE texture = {64, 32, false, 0, pixels};
+    static bool initialized = false;
+    if(!initialized)
+    {
+        for(unsigned y = 0; y < 32; ++y)
+            for(unsigned x = 0; x < 64; ++x)
+            {
+                const unsigned tile = (y / 16) * 4 + (x / 16);
+                COLOR c = palette[tile];
+                if(tile < 3 && ((x + y) % 7 == 0))
+                    c = palette[tile == 1 ? 0 : 1];
+                pixels[y * 64 + x] = c;
+            }
+        initialized = true;
+    }
+    return texture;
+}
+
 } // namespace
 
 void renderMob(const Entity &mob)
 {
-    glBindTexture(&animalTexture());
-    if(mob.mob_kind == MOB_COW)
-        cow(mob);
+    if(mob.mob_kind == MOB_TRADER)
+    {
+        glBindTexture(&traderTexture());
+        trader(mob);
+    }
     else
-        pig(mob);
+    {
+        glBindTexture(&animalTexture());
+        if(mob.mob_kind == MOB_COW)
+            cow(mob);
+        else
+            pig(mob);
+    }
 }

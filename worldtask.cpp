@@ -5,6 +5,7 @@
 #include "player_motion.h"
 #include "entity.h"
 #include "mobs.h"
+#include "trader.h"
 #include "stresstest.h"
 #include "platform_time.h"
 #include "lighting.h"
@@ -32,6 +33,7 @@
 #include "blockrenderer.h"
 #include "blocklisttask.h"
 #include "menutask.h"
+#include "traderscreen.h"
 #include "settingstask.h"
 #include "fastmath.h"
 #include "font.h"
@@ -44,6 +46,13 @@
 #include "textures/blockselection.h"
 
 WorldTask world_task;
+namespace {
+constexpr uint32_t TRADER_FIRST_VISIT_TICKS = 12000;  // ten minutes
+constexpr uint32_t TRADER_RETURN_DELAY_TICKS = 24000; // twenty minutes after a visit
+constexpr uint32_t TRADER_RETRY_TICKS = 1200;         // retry in one minute if no safe spawn
+constexpr uint16_t TRADER_LIFETIME_TICKS = 12000;     // a trader stays for ten minutes
+}
+
 
 constexpr GLFix  WorldTask::player_width,  WorldTask::player_height,  WorldTask::eye_pos;
 
@@ -231,6 +240,12 @@ void WorldTask::logic()
     else if(keyPressed(KEY_NSPIRE_7)) //Put block down
     {
         key_held_down = true;
+
+        if(aim_mob && aim_mob->type == EntityType::MOB && aim_mob->mob_kind == MOB_TRADER)
+        {
+            trader_screen.open(*aim_mob);
+            return;
+        }
 
         if(selection_side == AABB::NONE)
             return;
@@ -708,8 +723,12 @@ void WorldTask::tickMobs()
         if(e.type != EntityType::MOB)
             return;
         const int dx = (e.box.low_x / BLOCK_SIZE).floor() - px, dz = (e.box.low_z / BLOCK_SIZE).floor() - pz;
-        if(dx * dx + dz * dz > MOB_DESPAWN_BLOCKS * MOB_DESPAWN_BLOCKS)
+        const bool too_far = dx * dx + dz * dz > MOB_DESPAWN_BLOCKS * MOB_DESPAWN_BLOCKS;
+        const bool visit_over = e.mob_kind == MOB_TRADER && e.age_ticks >= TRADER_LIFETIME_TICKS;
+        if(too_far || visit_over)
         {
+            if(e.mob_kind == MOB_TRADER)
+                world_state.trader_next_visit = TRADER_RETURN_DELAY_TICKS;
             if(aim_mob == &e)
                 aim_mob = nullptr;
             entity_pool.remove(&e);
@@ -725,14 +744,28 @@ void WorldTask::tickMobs()
             trySpawnPassive();
     }
 
+    // A single wandering trader visits occasionally. Traders themselves are
+    // not saved between sessions, like the passive animals.
+    if(countTraders(entity_pool) > 0)
+        world_state.trader_next_visit = 0;
+    else if(world_state.trader_next_visit == 0)
+        world_state.trader_next_visit = TRADER_FIRST_VISIT_TICKS;
+    else if(--world_state.trader_next_visit == 0 && !trySpawnTrader())
+        world_state.trader_next_visit = TRADER_RETRY_TICKS;
+
     if(mob_hit_cooldown > 0)
         --mob_hit_cooldown;
 
-    // Survival: holding 9 at a mob hits it instead of mining, once per cooldown.
-    if(input_mine && aim_mob && aim_mob->type == EntityType::MOB && mob_hit_cooldown == 0)
+    // Survival: animals can be hit, but the wandering trader stays peaceful.
+    if(input_mine && aim_mob && aim_mob->type == EntityType::MOB)
     {
-        hitMob(*aim_mob);
-        input_mine = false;
+        if(aim_mob->mob_kind == MOB_TRADER)
+            input_mine = false;
+        else if(mob_hit_cooldown == 0)
+        {
+            hitMob(*aim_mob);
+            input_mine = false;
+        }
     }
 }
 
@@ -769,8 +802,54 @@ void WorldTask::trySpawnPassive()
     }
 }
 
+bool WorldTask::trySpawnTrader()
+{
+    if(countTraders(entity_pool) != 0)
+        return false;
+
+    const uint32_t r = mobRandom(mob_rng);
+    const int px = (x / BLOCK_SIZE).floor(), py = (y / BLOCK_SIZE).floor(), pz = (z / BLOCK_SIZE).floor();
+    const int dist = 8 + static_cast<int>(r % 8);
+    const int dir = static_cast<int>((r >> 8) % 4);
+    const int bx = px + MOB_DIR_DX[dir] * dist, bz = pz + MOB_DIR_DZ[dir] * dist;
+
+    // A trader needs a solid, non-fluid floor and two clear blocks above it.
+    for(int by = py + 3; by > py - 8; --by)
+    {
+        if(!world.isLoaded(bx, by, bz))
+            return false;
+        const BLOCK_WDATA floor = world.getBlock(bx, by, bz);
+        const BLOCK top = getBLOCK(floor);
+        if(top == BLOCK_AIR)
+            continue;
+        if(isFluid(floor) || !global_block_renderer.isObstacle(floor))
+            return false;
+        if(!world.isLoaded(bx, by + 1, bz) || !world.isLoaded(bx, by + 2, bz))
+            return false;
+        if(getBLOCK(world.getBlock(bx, by + 1, bz)) != BLOCK_AIR
+           || getBLOCK(world.getBlock(bx, by + 2, bz)) != BLOCK_AIR)
+            return false;
+
+        const GLFix half = BLOCK_SIZE * 3 / 10;
+        const GLFix cx = GLFix(bx * BLOCK_SIZE + BLOCK_SIZE / 2);
+        const GLFix cz = GLFix(bz * BLOCK_SIZE + BLOCK_SIZE / 2);
+        const GLFix low_y = GLFix((by + 1) * BLOCK_SIZE);
+        const AABB box{cx - half, low_y, cz - half,
+                       cx + half, low_y + BLOCK_SIZE * 18 / 10, cz + half};
+        if(world_collision.intersects(box))
+            return false;
+        if(!spawnTrader(entity_pool, box))
+            return false;
+        setMessage("A wandering trader is nearby.");
+        return true;
+    }
+    return false;
+}
+
 void WorldTask::hitMob(Entity &e)
 {
+    if(e.mob_kind == MOB_TRADER)
+        return;
     mob_hit_cooldown = MOB_HIT_COOLDOWN_TICKS;
     if(!hurtMob(e, MOB_HIT_DAMAGE))
         return;
@@ -1051,6 +1130,7 @@ void WorldTask::resetWorld()
     jump_key_was_down = false;
     jump_tap_ticks = 0;
     input_jump = input_sprint = input_descend = false;
+    world_state.trader_next_visit = 0;
 }
 
 void WorldTask::setMessage(const char *message)

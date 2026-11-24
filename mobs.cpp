@@ -19,11 +19,15 @@ GLFix walkSpeed()
 
 int mobMaxHealth(uint8_t kind)
 {
+    if(kind == MOB_TRADER)
+        return 0; // Traders are peaceful and cannot be killed.
     return kind == MOB_COW ? COW_HEALTH : PIG_HEALTH;
 }
 
 ItemStack mobDrop(uint8_t kind)
 {
+    if(kind == MOB_TRADER)
+        return ItemStack();
     return kind == MOB_COW ? ItemStack(ITEM_BEEF_RAW, 1) : ItemStack(ITEM_PORK_RAW, 1);
 }
 
@@ -51,8 +55,32 @@ int countPassive(const EntityPool &pool)
     return n;
 }
 
+Entity *spawnTrader(EntityPool &pool, const AABB &box)
+{
+    Entity *e = pool.spawn(EntityType::MOB, box);
+    if(e)
+    {
+        e->mob_kind = MOB_TRADER;
+        e->health = 0;
+        e->mob_heading = 4;
+    }
+    return e;
+}
+
+int countTraders(const EntityPool &pool)
+{
+    int n = 0;
+    pool.forEach([&n](const Entity &e) {
+        if(e.type == EntityType::MOB && e.mob_kind == MOB_TRADER)
+            ++n;
+    });
+    return n;
+}
+
 bool hurtMob(Entity &e, int damage)
 {
+    if(e.mob_kind == MOB_TRADER)
+        return false;
     e.health = static_cast<int16_t>(e.health - damage);
     return e.health <= 0;
 }
