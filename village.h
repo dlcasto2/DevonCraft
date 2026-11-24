@@ -10,6 +10,13 @@
 // neighbouring settlement footprints.
 constexpr int VILLAGE_CELL_SIZE = 40;
 
+// Villages can level this much natural height variation with their foundations.
+constexpr int VILLAGE_MAX_TERRAIN_VARIATION = 8;
+constexpr bool villageTerrainVariationAllowed(int minimum, int maximum)
+{
+    return maximum >= minimum && maximum - minimum <= VILLAGE_MAX_TERRAIN_VARIATION;
+}
+
 struct VillageSite
 {
     int x, z;
