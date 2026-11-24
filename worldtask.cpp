@@ -83,6 +83,7 @@ void WorldTask::logic()
     // Record this frame's movement intent; tick() applies physics.
     input_forward = keyPressed(KEY_NSPIRE_8) ? 1 : (keyPressed(KEY_NSPIRE_2) ? -1 : 0);
     input_strafe = keyPressed(KEY_NSPIRE_6) ? 1 : (keyPressed(KEY_NSPIRE_4) ? -1 : 0);
+    input_sprint = keyPressed(KEY_NSPIRE_CTRL) && input_forward > 0;
 
     const bool jump_down = keyPressed(KEY_NSPIRE_5);
     input_jump = jump_down;
@@ -434,7 +435,7 @@ void WorldTask::tick()
         motion.swimming = false;
     }
     else
-        playerTick(world_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump}, yr, walk, auto_jump);
+        playerTick(world_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump, input_sprint}, yr, walk, auto_jump);
 
     x = (box.low_x + box.high_x) / 2;
     y = box.low_y;
@@ -1049,7 +1050,7 @@ void WorldTask::resetWorld()
     creative_flight = false;
     jump_key_was_down = false;
     jump_tap_ticks = 0;
-    input_jump = input_descend = false;
+    input_jump = input_sprint = input_descend = false;
 }
 
 void WorldTask::setMessage(const char *message)

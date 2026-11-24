@@ -62,7 +62,7 @@ private:
     unsigned char jump_tap_ticks = 0; // Window for the second press of 5.
 
     int8_t input_forward = 0, input_strafe = 0; //Set by logic(), used by tick()
-    bool input_jump = false, input_descend = false, input_mine = false;
+    bool input_jump = false, input_sprint = false, input_descend = false, input_mine = false;
 
     MiningState mining;
     uint32_t drop_rng = 0x5eed;

@@ -18,6 +18,36 @@ TEST_CASE("walking forward at yaw 0 moves along +z") {
     playerTick(w, box, m, PlayerInput{1, 0, false}, GLFix(0), GLFix(10), false);
     CHECK((box.low_z - z0).floor() >= 9); CHECK((box.low_z - z0).floor() <= 10);
 }
+TEST_CASE("holding sprint with forward increases ground speed by 30 percent") {
+    GridWorld w = floorWorld();
+    AABB walking = playerBoxAt(64, 128, 64), sprinting = playerBoxAt(64, 128, 64);
+    PlayerMotion walk_motion, sprint_motion;
+    walk_motion.on_ground = sprint_motion.on_ground = true;
+    const GLFix start_z = walking.low_z;
+
+    playerTick(w, walking, walk_motion, PlayerInput{1, 0, false, false}, GLFix(0), GLFix(10), false);
+    playerTick(w, sprinting, sprint_motion, PlayerInput{1, 0, false, true}, GLFix(0), GLFix(10), false);
+
+    const GLFix walk_distance = walking.low_z - start_z;
+    const GLFix sprint_distance = sprinting.low_z - start_z;
+    CHECK(sprint_distance > walk_distance);
+    CHECK(sprint_distance.floor() >= 12);
+    CHECK(sprint_distance.floor() <= 13);
+}
+
+TEST_CASE("sprint does not boost backward movement") {
+    GridWorld w = floorWorld();
+    AABB walking = playerBoxAt(64, 128, 64), sprinting = playerBoxAt(64, 128, 64);
+    PlayerMotion walk_motion, sprint_motion;
+    walk_motion.on_ground = sprint_motion.on_ground = true;
+    const GLFix start_z = walking.low_z;
+
+    playerTick(w, walking, walk_motion, PlayerInput{-1, 0, false, false}, GLFix(0), GLFix(10), false);
+    playerTick(w, sprinting, sprint_motion, PlayerInput{-1, 0, false, true}, GLFix(0), GLFix(10), false);
+
+    CHECK(sprinting.low_z - start_z == walking.low_z - start_z);
+}
+
 TEST_CASE("jump only from the ground") {
     GridWorld w = floorWorld(); AABB box = playerBoxAt(64, 128, 64); PlayerMotion m; m.on_ground = true;
     playerTick(w, box, m, PlayerInput{0, 0, true}, GLFix(0), GLFix(10), false);
@@ -123,12 +153,21 @@ TEST_CASE("swimming up stops with the feet just under the surface") {
     CHECK(highest > GLFix(5 * 128 - 70)); CHECK(highest < GLFix(5 * 128));
 }
 
-TEST_CASE("walking in water is half speed and auto-jump is off") {
-    GridWorld w = poolWorld(2); AABB box = playerBoxAt(64, 128, 64); PlayerMotion m; m.on_ground = true;
-    const GLFix z0 = box.low_z;
-    playerTick(w, box, m, PlayerInput{1, 0, false}, GLFix(0), GLFix(20), true);
-    CHECK(m.swimming);
-    CHECK((box.low_z - z0).floor() >= 9); CHECK((box.low_z - z0).floor() <= 10);
+TEST_CASE("walking in water is half speed, and sprint does not change it") {
+    GridWorld w = poolWorld(2);
+    AABB walking = playerBoxAt(64, 128, 64), sprinting = playerBoxAt(64, 128, 64);
+    PlayerMotion walk_motion, sprint_motion;
+    walk_motion.on_ground = sprint_motion.on_ground = true;
+    const GLFix start_z = walking.low_z;
+
+    playerTick(w, walking, walk_motion, PlayerInput{1, 0, false, false}, GLFix(0), GLFix(20), true);
+    playerTick(w, sprinting, sprint_motion, PlayerInput{1, 0, false, true}, GLFix(0), GLFix(20), true);
+
+    CHECK(walk_motion.swimming);
+    CHECK(sprint_motion.swimming);
+    CHECK(sprinting.low_z - start_z == walking.low_z - start_z);
+    CHECK((walking.low_z - start_z).floor() >= 9);
+    CHECK((walking.low_z - start_z).floor() <= 10);
 }
 
 TEST_CASE("pushing against a bank near the surface steps out of the water") {

@@ -14,6 +14,7 @@ struct PlayerInput {
     int8_t forward;   // -1, 0, 1
     int8_t strafe;
     bool jump;
+    bool sprint;      // Ctrl held while moving forward
 };
 
 struct PlayerMotion {
