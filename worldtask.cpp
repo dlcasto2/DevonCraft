@@ -860,7 +860,8 @@ void WorldTask::respawnPlayer()
     {
         x = GLFix(player_state.spawn_x * BLOCK_SIZE + BLOCK_SIZE / 2);
         // Beds are only 9/16 of a block tall; place feet on the actual bed top.
-        y = GLFix(player_state.spawn_y * BLOCK_SIZE + BLOCK_SIZE * 9 / 16);
+        // AABB intersection treats touching faces as overlap; keep a one-unit clearance.
+        y = GLFix(player_state.spawn_y * BLOCK_SIZE + BLOCK_SIZE * 9 / 16 + 1);
         z = GLFix(player_state.spawn_z * BLOCK_SIZE + BLOCK_SIZE / 2);
         world.setPosition(x, y, z);
         const AABB candidate{x - player_width/2, y, z - player_width/2,
