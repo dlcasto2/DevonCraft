@@ -61,6 +61,45 @@ int floorDiv(int value, int divisor)
     return quotient;
 }
 
+// Cache the result of checking a candidate cell. Tree placement asks about
+// every block in a tree shape, so recomputing the five foundation footprints
+// for each block would be wasteful. A small direct-mapped cache keeps this
+// check bounded and also caches cells that do not contain a village.
+struct VillageSiteCacheEntry
+{
+    uint32_t seed;
+    int cell_x, cell_z;
+    VillageSite site;
+    bool valid;
+    bool suitable;
+};
+
+constexpr unsigned int VILLAGE_SITE_CACHE_SIZE = 64;
+static VillageSiteCacheEntry village_site_cache[VILLAGE_SITE_CACHE_SIZE] = {};
+
+bool cachedSuitableVillageSite(const PerlinNoise &noise, int cell_x, int cell_z,
+                               uint32_t seed, VillageSite &site)
+{
+    uint32_t hash = seed;
+    hash ^= static_cast<uint32_t>(cell_x) * 0x9E3779B1u;
+    hash ^= static_cast<uint32_t>(cell_z) * 0x85EBCA77u;
+    VillageSiteCacheEntry &entry = village_site_cache[hash & (VILLAGE_SITE_CACHE_SIZE - 1)];
+
+    if(!entry.valid || entry.seed != seed || entry.cell_x != cell_x || entry.cell_z != cell_z)
+    {
+        entry.seed = seed;
+        entry.cell_x = cell_x;
+        entry.cell_z = cell_z;
+        entry.valid = true;
+        entry.suitable = villageSiteForCell(cell_x, cell_z, seed, entry.site)
+                      && villageSiteSuitable(noise, entry.site);
+    }
+
+    if(entry.suitable)
+        site = entry.site;
+    return entry.suitable;
+}
+
 // The four houses (the blacksmith is one of them) and the well, as villagegen
 // levels them before it builds. Returns how many it wrote.
 int levelledFootprints(const VillageSite &site, Footprint *out)
@@ -117,7 +156,7 @@ bool villageSiteSuitable(const PerlinNoise &noise, const VillageSite &site)
     return true;
 }
 
-bool villageReserved(uint32_t seed, int x, int z)
+bool villageReserved(const PerlinNoise &noise, uint32_t seed, int x, int z)
 {
     // Every reserved footprint lies within this many columns of its site.
     constexpr int REACH = 24;
@@ -125,7 +164,7 @@ bool villageReserved(uint32_t seed, int x, int z)
         for(int cell_z = floorDiv(z - REACH, VILLAGE_CELL_SIZE); cell_z <= floorDiv(z + REACH, VILLAGE_CELL_SIZE); ++cell_z)
         {
             VillageSite site;
-            if(!villageSiteForCell(cell_x, cell_z, seed, site))
+            if(!cachedSuitableVillageSite(noise, cell_x, cell_z, seed, site))
                 continue;
 
             Footprint footprints[MAX_RESERVED_FOOTPRINTS];
