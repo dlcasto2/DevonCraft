@@ -392,14 +392,19 @@ bool WorldCollision::intersects(const AABB &box) const
 
 bool WorldCollision::touchesWater(const AABB &box) const
 {
-    // Every block the box overlaps; a box that only touches a block doesn't count.
+    return touchesBlock(box, BLOCK_WATER);
+}
+
+bool WorldCollision::touchesBlock(const AABB &box, BLOCK target) const
+{
+    // A box that only touches a block's edge does not count as contact.
     const int x0 = (box.low_x / BLOCK_SIZE).floor(), x1 = ((box.high_x - GLFix(1)) / BLOCK_SIZE).floor();
     const int y0 = (box.low_y / BLOCK_SIZE).floor(), y1 = ((box.high_y - GLFix(1)) / BLOCK_SIZE).floor();
     const int z0 = (box.low_z / BLOCK_SIZE).floor(), z1 = ((box.high_z - GLFix(1)) / BLOCK_SIZE).floor();
     for(int x = x0; x <= x1; ++x)
         for(int y = y0; y <= y1; ++y)
             for(int z = z0; z <= z1; ++z)
-                if(getBLOCK(world.getBlock(x, y, z)) == BLOCK_WATER)
+                if(getBLOCK(world.getBlock(x, y, z)) == target)
                     return true;
     return false;
 }

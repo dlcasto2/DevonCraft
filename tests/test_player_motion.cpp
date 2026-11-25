@@ -2,6 +2,8 @@
 #include "player_motion.h"
 #include "grid_world.h"
 
+#include <cmath>
+
 static GridWorld floorWorld() {
     GridWorld w;
     for (int x = -3; x <= 3; ++x) for (int z = -3; z <= 3; ++z) w.solid.insert(std::make_tuple(x, 0, z));
@@ -229,4 +231,108 @@ TEST_CASE("a bank a block above the water can't be climbed from deep water") {
     AABB box = playerBoxAt(64, 128, 64 + 128 - 52); PlayerMotion m;
     for (int i = 0; i < 80; ++i) playerTick(w, box, m, PlayerInput{1, 0, true}, GLFix(0), GLFix(20), false);
     CHECK(box.low_z < GLFix(2 * 128));
+}
+
+
+
+TEST_CASE("stop ends a sprint even while forward stays held, and a new double-tap restarts it") {
+    DoubleTapSprint sprint;
+    CHECK_FALSE(sprint.update(true));
+    CHECK_FALSE(sprint.update(false));
+    sprint.tick();
+    CHECK(sprint.update(true));        // double-tap: sprinting
+    sprint.stop();                     // ran into a wall
+    CHECK_FALSE(sprint.update(true));  // still holding forward, but no longer sprinting
+    CHECK_FALSE(sprint.update(false));
+    sprint.tick();
+    CHECK_FALSE(sprint.update(true));  // a single tap is not enough
+    CHECK_FALSE(sprint.update(false));
+    sprint.tick();
+    CHECK(sprint.update(true));        // a fresh double-tap sprints again
+}
+
+TEST_CASE("running into a wall while sprinting ends the sprint, walking does not") {
+    GridWorld w = floorWorld();
+    w.solid.insert(std::make_tuple(0, 1, 1));   // a wall ahead, in the path of the player
+    AABB sprinting = playerBoxAt(64, 128, 64), walking = playerBoxAt(64, 128, 64);
+    PlayerMotion sprint_motion, walk_motion;
+    sprint_motion.on_ground = walk_motion.on_ground = true;
+
+    bool sprint_stopped = false, walk_stopped = false;
+    for(int i = 0; i < 6; ++i) {
+        playerTick(w, sprinting, sprint_motion, PlayerInput{1, 0, false, true}, GLFix(0), GLFix(10), false);
+        playerTick(w, walking, walk_motion, PlayerInput{1, 0, false, false}, GLFix(0), GLFix(10), false);
+        sprint_stopped = sprint_stopped || sprint_motion.sprint_stopped;
+        walk_stopped = walk_stopped || walk_motion.sprint_stopped;
+    }
+    CHECK(sprint_stopped);
+    CHECK_FALSE(walk_stopped);
+}
+
+TEST_CASE("forward and strafe together are no faster than forward alone") {
+    GridWorld w = floorWorld();
+    AABB straight = playerBoxAt(64, 128, 64), diagonal = playerBoxAt(64, 128, 64);
+    PlayerMotion a, b;
+    a.on_ground = b.on_ground = true;
+    const GLFix start_z = straight.low_z, start_x = straight.low_x;
+
+    playerTick(w, straight, a, PlayerInput{1, 0, false, false}, GLFix(0), GLFix(20), false);
+    playerTick(w, diagonal, b, PlayerInput{1, 1, false, false}, GLFix(0), GLFix(20), false);
+
+    const float straight_x = (straight.low_x - start_x).toFloat();
+    const float straight_z = (straight.low_z - start_z).toFloat();
+    const float diagonal_x = (diagonal.low_x - start_x).toFloat();
+    const float diagonal_z = (diagonal.low_z - start_z).toFloat();
+    const float straight_distance = std::sqrt(straight_x * straight_x + straight_z * straight_z);
+    const float diagonal_distance = std::sqrt(diagonal_x * diagonal_x + diagonal_z * diagonal_z);
+    CHECK(straight_distance > 0);
+    CHECK(std::fabs(diagonal_distance / straight_distance - 1.0f) < 0.02f);
+}
+
+TEST_CASE("a sprint jump carries the player forward, and the momentum decays") {
+    GridWorld w = floorWorld();
+    AABB box = playerBoxAt(64, 128, 64);
+    PlayerMotion m;
+    m.on_ground = true;
+
+    // The jump tick: forward held, sprint on, jump pressed.
+    playerTick(w, box, m, PlayerInput{1, 0, true, true}, GLFix(0), GLFix(10), false);
+    CHECK(m.boost_z > GLFix(0));
+    CHECK(m.boost_x == GLFix(0));
+
+    // Hold nothing: only the momentum moves the player, and it shrinks each tick.
+    GLFix previous = box.low_z;
+    GLFix first_step = GLFix(0), later_step = GLFix(0);
+    for(int i = 0; i < 12; ++i) {
+        playerTick(w, box, m, PlayerInput{0, 0, false, false}, GLFix(0), GLFix(10), false);
+        const GLFix step = box.low_z - previous;
+        previous = box.low_z;
+        if(i == 0) first_step = step;
+        if(i == 4) later_step = step;
+    }
+    CHECK(first_step > GLFix(0));
+    CHECK(later_step < first_step);
+}
+
+TEST_CASE("walking jumps do not gain sprint momentum") {
+    GridWorld w = floorWorld();
+    AABB box = playerBoxAt(64, 128, 64);
+    PlayerMotion m;
+    m.on_ground = true;
+    playerTick(w, box, m, PlayerInput{1, 0, true, false}, GLFix(0), GLFix(10), false);
+    CHECK(m.boost_z == GLFix(0));
+    CHECK(m.boost_x == GLFix(0));
+}
+
+TEST_CASE("the sprint near plane narrows to 100/115 of its base, and returns at walking speed") {
+    CHECK(sprintNearPlane(GLFix(100), 0) == GLFix(100));
+    CHECK(sprintNearPlane(GLFix(115), SPRINT_FOV_TICKS) == GLFix(100));
+    CHECK(sprintNearPlane(GLFix(115), 99) == GLFix(100));   // ramp is clamped
+    CHECK(sprintNearPlane(GLFix(115), -3) == GLFix(115));
+    GLFix previous = sprintNearPlane(GLFix(115), 0);
+    for(int ramp = 1; ramp <= SPRINT_FOV_TICKS; ++ramp) {
+        const GLFix current = sprintNearPlane(GLFix(115), ramp);
+        CHECK(current < previous);
+        previous = current;
+    }
 }

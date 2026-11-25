@@ -44,6 +44,12 @@ private:
     Entity *aimedMob(GLFix ox, GLFix oy, GLFix oz, GLFix dx, GLFix dy, GLFix dz, GLFix block_dist);
     bool useBlock(int bx, int by, int bz);          // 7 on a chest, furnace, crafting table, smithing table or bed
     bool useBucket();                               // 7 with a bucket: scoop or pour water
+    bool eatHeldFood();
+    void tickSurvival(const AABB &box, const PlayerMotion &motion, bool head_underwater,
+                      GLFix previous_x, GLFix previous_y, GLFix previous_z, bool was_on_ground);
+    void hurtPlayer(int damage);
+    void beginPlayerDeath();
+    void respawnPlayer();
     VECTOR3 besideSelection() const;                // the block against the face being aimed at
     bool placeBed(int fx, int fy, int fz);
     void removeBlock(int bx, int by, int bz, BLOCK_WDATA target);   // with chest contents and bed halves
@@ -63,6 +69,8 @@ private:
     bool jump_key_was_down = false;
     unsigned char jump_tap_ticks = 0; // Window for the second press of 5.
     DoubleTapSprint sprint_input_state;
+    GLFix sprint_boost_x = 0, sprint_boost_z = 0; // momentum from a sprint jump, carried between ticks
+    int sprint_fov_ticks = 0;                      // 0 walking .. SPRINT_FOV_TICKS sprinting
 
     int8_t input_forward = 0, input_strafe = 0; //Set by logic(), used by tick()
     bool input_jump = false, input_sprint = false, input_descend = false, input_mine = false;
@@ -71,6 +79,12 @@ private:
     uint32_t drop_rng = 0x5eed;
     uint32_t mob_rng = 0x6d6f62;
     int mob_spawn_timer = 0, mob_hit_cooldown = 0;
+    uint8_t player_hurt_ticks = 0;
+    uint16_t drowning_damage_ticks = 0, lava_damage_ticks = 0, cactus_damage_ticks = 0;
+    uint16_t regeneration_ticks = 0, starvation_ticks = 0, peaceful_refill_ticks = 0;
+    uint16_t death_ticks = 0;
+    GLFix fall_peak_y = 0;
+    bool fall_tracking = false;
     Entity *aim_mob = nullptr;
 
     static constexpr int SLEEP_FADE_TICKS = 40;   // two seconds of fading

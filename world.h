@@ -83,6 +83,7 @@ class WorldCollision : public CollisionQuery
 public:
     bool intersects(const AABB &box) const override;
     bool touchesWater(const AABB &box) const override;
+    bool touchesBlock(const AABB &box, BLOCK block) const;
 };
 
 extern WorldCollision world_collision;

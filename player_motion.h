@@ -21,7 +21,17 @@ struct PlayerMotion {
     GLFix vy = 0;
     bool on_ground = false;
     bool swimming = false;   // the body was in water this tick
+    bool sprinting = false;  // set by playerTick: sprint boost applied this tick
+    bool sprint_stopped = false; // set by playerTick: a sprinting player ran into a wall
+    // Momentum from a sprint jump, in world units per tick, carried forward and decayed.
+    GLFix boost_x = 0, boost_z = 0;
 };
+
+// Sprint field of view: 1.8.8 widens the view by 15% while sprinting. The projection
+// scales by the near plane, so widening the view means shrinking it. The ramp takes
+// SPRINT_FOV_TICKS ticks to go from walking to full sprint, and back.
+constexpr int SPRINT_FOV_TICKS = 5;
+GLFix sprintNearPlane(GLFix base_near, int ramp);
 
 // The part of the player that has to be in water to swim: as in 1.8.8, the
 // box less 0.4 blocks at the top and bottom. Rising past the surface ends
@@ -55,6 +65,14 @@ public:
     {
         if(tap_window_ticks > 0)
             --tap_window_ticks;
+    }
+
+    // Ends the sprint without waiting for the key, as when running into a wall.
+    // Holding forward doesn't restart it: the next sprint needs a fresh double-tap.
+    void stop()
+    {
+        sprinting = false;
+        tap_window_ticks = 0;
     }
 
     void reset()
