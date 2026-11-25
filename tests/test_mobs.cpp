@@ -2,6 +2,7 @@
 #include "mobs.h"
 #include "terrain.h"
 #include "grid_world.h"
+#include "gl.h"
 
 TEST_CASE("a pig takes five bare-hand hits, and the fifth kills it") {
     EntityPool pool;
@@ -157,7 +158,7 @@ TEST_CASE("mob collision does not trigger terrain auto-jump") {
 
     // Real block steps still trigger the normal auto-jump check.
     terrain.solid.insert(std::make_tuple(0, 1, 1));
-    CHECK(shouldAutoJump(collision, player, GLFix(0), GLFix(10), true, false));
+    CHECK(shouldAutoJump(collision, player, GLFix(0), GLFix(20), true, false));
 }
 
 
@@ -268,4 +269,27 @@ TEST_CASE("sheep take five one-heart hits just like pigs and cows")
     }
     CHECK(hurtMob(*sheep, MOB_HIT_DAMAGE));
     CHECK(sheep->health == 0);
+}
+
+
+TEST_CASE("nGL line segments are clipped before unsafe perspective depths")
+{
+    VERTEX behind{GLFix(-2), GLFix(1), GLFix(0.25f), GLFix(0), GLFix(0), 0x07FF};
+    VERTEX ahead{GLFix(2), GLFix(5), GLFix(2), GLFix(0), GLFix(0), 0x07FF};
+
+    // The configured near plane can be below one, but the integer projector
+    // requires a depth whose integer part is at least one.
+    CHECK(nglClipLineToNearPlane(behind, ahead, GLFix(0.5f)));
+    CHECK(behind.z == GLFix(1));
+    CHECK(behind.z.toInteger<int>() >= 1);
+
+    VERTEX hidden_a{GLFix(0), GLFix(0), GLFix(0.1f), GLFix(0), GLFix(0), 0x07FF};
+    VERTEX hidden_b{GLFix(1), GLFix(1), GLFix(0.9f), GLFix(0), GLFix(0), 0x07FF};
+    CHECK_FALSE(nglClipLineToNearPlane(hidden_a, hidden_b, GLFix(0.5f)));
+
+    VERTEX visible_a{GLFix(0), GLFix(0), GLFix(2), GLFix(0), GLFix(0), 0x07FF};
+    VERTEX visible_b{GLFix(1), GLFix(1), GLFix(3), GLFix(0), GLFix(0), 0x07FF};
+    CHECK(nglClipLineToNearPlane(visible_a, visible_b, GLFix(1)));
+    CHECK(visible_a.z == GLFix(2));
+    CHECK(visible_b.z == GLFix(3));
 }
