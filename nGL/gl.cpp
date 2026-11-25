@@ -792,9 +792,9 @@ bool nglDrawTriangle(const VERTEX *low, const VERTEX *middle, const VERTEX *high
     for(unsigned int i = 0; i < clipped_count; ++i)
         nglPerspective(&clipped[i]);
 
-    // Keep the established culling behavior for a clipped quad: the old
-    // two-visible-vertex path deliberately skipped this cull.
-    if(clipped_count == 3 && backface_culling
+    // Clipping preserves polygon winding. Test the first three projected
+    // vertices for both triangles and quads before fan-triangulating.
+    if(backface_culling
        && nglIsBackface(&clipped[0], &clipped[1], &clipped[2]))
         return false;
 
