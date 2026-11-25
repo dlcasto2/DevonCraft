@@ -836,7 +836,7 @@ bool Chunk::placeTree(TreeKind kind, int x, int y, int z, uint32_t rnd)
         // placed, reject the tree rather than leaving a floating crown.
         // A tree rooted inside a village footprint must fail as a whole. This
         // also keeps saplings from being consumed when growth is blocked.
-        const bool reserved = villageReserved(world.worldSeed(),
+        const bool reserved = villageReserved(world.noiseGenerator(), world.worldSeed(),
                                               bx + this->x * SIZE,
                                               bz + this->z * SIZE);
         if(i == 0 && (!room || reserved || t.dx != 0 || t.dy != 0 || t.dz != 0 || t.block != logFor(kind)))
