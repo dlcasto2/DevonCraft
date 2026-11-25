@@ -159,3 +159,44 @@ TEST_CASE("mob collision does not trigger terrain auto-jump") {
     terrain.solid.insert(std::make_tuple(0, 1, 1));
     CHECK(shouldAutoJump(collision, player, GLFix(0), GLFix(10), true, false));
 }
+
+
+TEST_CASE("damaging a mob lowers its health and briefly marks it as hurt") {
+    EntityPool pool;
+    Entity *pig = spawnPassive(pool, MOB_PIG, AABB());
+    REQUIRE(pig != nullptr);
+    CHECK(pig->health == 10);
+    CHECK_FALSE(hurtMob(*pig, MOB_HIT_DAMAGE));
+    CHECK(pig->health == 8);
+    CHECK(pig->invulnerable_ticks == MOB_HURT_FLASH_TICKS);
+
+    GridWorld world;
+    pool.tick(world);
+    CHECK(pig->invulnerable_ticks == MOB_HURT_FLASH_TICKS - 1);
+}
+
+TEST_CASE("lethal mob damage clamps health to zero and leaves traders immune") {
+    EntityPool pool;
+    Entity *pig = spawnPassive(pool, MOB_PIG, AABB());
+    Entity *trader = spawnTrader(pool, AABB());
+    REQUIRE(pig != nullptr);
+    REQUIRE(trader != nullptr);
+
+    CHECK(hurtMob(*pig, 100));
+    CHECK(pig->health == 0);
+    CHECK_FALSE(hurtMob(*pig, 2));
+    CHECK(pig->health == 0);
+
+    CHECK_FALSE(hurtMob(*trader, 100));
+    CHECK(trader->health == 0);
+}
+
+TEST_CASE("invalid damage does not hurt mobs") {
+    EntityPool pool;
+    Entity *cow = spawnPassive(pool, MOB_COW, AABB());
+    REQUIRE(cow != nullptr);
+    CHECK_FALSE(hurtMob(*cow, 0));
+    CHECK_FALSE(hurtMob(*cow, -5));
+    CHECK(cow->health == mobMaxHealth(MOB_COW));
+    CHECK(cow->invulnerable_ticks == 0);
+}
