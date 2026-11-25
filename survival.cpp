@@ -94,8 +94,9 @@ SurvivalTickOutcome tickSurvivalNeeds(PlayerState &player, Difficulty difficulty
                 ++player.health;
             if(player.hunger < PLAYER_MAX_HUNGER)
                 ++player.hunger;
+            const unsigned saturation_cap = static_cast<unsigned>(player.hunger) * 100u;
             player.saturation_x100 = static_cast<uint16_t>(
-                std::min<unsigned>(PLAYER_MAX_SATURATION_X100, player.saturation_x100 + 100u));
+                std::min<unsigned>(saturation_cap, player.saturation_x100 + 100u));
         }
         player.exhaustion_x1000 = 0;
         return result;
