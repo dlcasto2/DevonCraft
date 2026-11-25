@@ -407,9 +407,36 @@ void nglDrawLine3D(const VERTEX *v1, const VERTEX *v2)
     nglPerspective(&v2_p);
 
     const GLFix diff_x = v2_p.x - v1_p.x;
-    const GLFix dy = (v2_p.y - v1_p.y) / diff_x;
-
     const COLOR c = v1_p.c;
+
+    // A perfectly vertical projected line has no X delta. Handle it before
+    // calculating dy/dx, which would otherwise divide by zero on the calculator.
+    if(diff_x == GLFix(0))
+    {
+        if(v2_p.y < v1_p.y)
+            std::swap(v1_p, v2_p);
+
+        const GLFix diff_y = v2_p.y - v1_p.y;
+        if(diff_y == GLFix(0))
+        {
+            pixel(v1_p.x, v1_p.y, v1_p.z, c);
+            return;
+        }
+
+        const GLFix dz = (v2_p.z - v1_p.z) / diff_y;
+        int end_y = v2_p.y;
+        if(end_y >= SCREEN_HEIGHT)
+            end_y = SCREEN_HEIGHT - 1;
+
+        for(; v1_p.y <= GLFix(end_y); ++v1_p.y)
+        {
+            pixel(v1_p.x, v1_p.y, v1_p.z, c);
+            v1_p.z += dz;
+        }
+        return;
+    }
+
+    const GLFix dy = (v2_p.y - v1_p.y) / diff_x;
 
     //Height > width? -> Interpolate X
     if(dy > GLFix(1) || dy < GLFix(-1))
