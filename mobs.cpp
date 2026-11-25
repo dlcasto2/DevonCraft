@@ -81,10 +81,13 @@ int countTraders(const EntityPool &pool)
 
 bool hurtMob(Entity &e, int damage)
 {
-    if(e.mob_kind == MOB_TRADER)
+    if(e.type != EntityType::MOB || e.mob_kind == MOB_TRADER || damage <= 0 || e.health <= 0)
         return false;
-    e.health = static_cast<int16_t>(e.health - damage);
-    return e.health <= 0;
+
+    const int remaining = static_cast<int>(e.health) - damage;
+    e.health = static_cast<int16_t>(remaining > 0 ? remaining : 0);
+    e.invulnerable_ticks = MOB_HURT_FLASH_TICKS;
+    return e.health == 0;
 }
 
 void steerMob(Entity &e, uint32_t &rng)
