@@ -204,6 +204,12 @@ inline unsigned int nglClipTriangleToNearPlane(
 // near_plane is a projection scale, not the camera-space clipping distance.
 inline bool nglClipLineToNearPlane(VERTEX &a, VERTEX &b, GLFix clip_depth)
 {
+    // nglPerspective's legacy integer-depth division becomes unsafe below
+    // one world unit, even when a caller configures a smaller clip distance.
+    const GLFix integer_safe_depth(1);
+    if(clip_depth < integer_safe_depth)
+        clip_depth = integer_safe_depth;
+
     const bool a_inside = a.z >= clip_depth;
     const bool b_inside = b.z >= clip_depth;
 
