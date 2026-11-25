@@ -4,11 +4,16 @@
 #include <cstdint>
 
 #include "physics.h"
+#include "terrain.h"
 
 // The original 1.3 controller moved the player per frame; the game now ticks at 20/s. These
 // scale the per-frame distances by the old frame rate so motion feels the same.
 GLFix velocityPerTick(GLFix per_frame, int fps);   // per_frame * fps / 20
 GLFix accelPerTick(GLFix per_frame, int fps);      // per_frame * fps * fps / 400
+
+// Rounded to whole world units: 1.7 blocks leaves enough initial jump clearance
+// to move upward once in a two-block-tall passage before contacting its ceiling.
+constexpr int PLAYER_COLLISION_HEIGHT = BLOCK_SIZE * 17 / 10;
 
 struct PlayerInput {
     int8_t forward;   // -1, 0, 1
