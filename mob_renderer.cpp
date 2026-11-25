@@ -181,11 +181,11 @@ void cow(const Entity &mob)
 void sheep(const Entity &mob)
 {
     const FaceSet fleece = {7, 7, 7, 7, 7, 7};
-    const FaceSet body = {15, 15, 15, 15, 15, 15};
+    const FaceSet body = {5, 5, 5, 5, 5, 5};
     const FaceSet face = {5, 5, 5, 5, 5, 5};
-    const FaceSet leg = {15, 15, 15, 15, 15, 15};
+    const FaceSet leg = {5, 5, 5, 5, 5, 5};
     const FaceSet hoof = {4, 4, 4, 4, 4, 4};
-    const FaceSet eye = {8, 8, 8, 8, 8, 8};
+    const FaceSet eye = {4, 4, 4, 4, 4, 4};
 
     if(!mob.sheared)
     {
