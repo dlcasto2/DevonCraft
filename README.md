@@ -7,7 +7,7 @@ The goal is 1.8.8-style survival play (items, mining, mobs, and difficulty level
 
 > **Status:** survival basics are playable: hold-to-mine with tool tiers, block drops, a day/night cycle,
 > crafting, furnaces, chests, beds, the smithing table, lakes to swim in and scoop with a bucket, and seven biomes.
-> Passive pig and cow mobs now spawn on grass in daylight, wander, and drop raw meat when hunted.
+> Passive pig, cow and sheep mobs now spawn on grass in daylight, wander, and drop their meat when hunted.
 > Screenshots are reference captures from this source snapshot; the menu and help screens have been refreshed for DevonCraft branding.
 
 Screenshots
@@ -46,7 +46,7 @@ What's new so far
 - **Game mode:** switch between Survival and Creative in Options (locked in Hardcore).
 - **Low graphics:** caps the active chunk radius at 3 on CX (2 on the original monochrome CAS), matching Abyssal Transcendence's Low preset, uses opaque leaves, and skips cosmetic block animations and particles while preserving original block textures. The renderer keeps its pre-rendered textured-quad path in both Normal and Low. It leaves generated terrain and saved block data unchanged. The **Graphics** option applies Normal or Low in one step; Low selects this mode and its 3-chunk CX distance cap (2 on original monochrome CAS). The Low graphics and Distance rows remain editable afterward.
 - **Terrain compatibility mode:** new chunks use the earlier seeded Perlin generator and its seven legacy biome families, restoring the rolling terrain profile from the known terrain-loading build. Chunk clearing remains row-safe, and the newer surface-decoration/tree-placement fixes are retained. The existing water texture, sea fill, and water-rendering path are unchanged. Existing saved chunks are not rewritten.
-- **Passive mobs:** Pigs and cows spawn on grass in daylight, wander slowly, despawn when far from the player, and drop raw pork or beef after five bare-hand hits. Mobs use original low-poly 3D cuboid models and a dedicated 16x16-tile pixel-art texture atlas; mob entities are transient and are not saved.
+- **Passive mobs:** Pigs, cows and sheep spawn on grass in daylight, wander slowly, and despawn when far from the player. Pigs drop raw pork, cows drop raw beef, and sheep drop raw mutton plus wool while unshorn. Sheep have their own woolly 3D model and can be sheared with key 7 while aimed at them; shearing gives 1-3 wool blocks, and fleece regrows after ten seconds of grazing on grass. Wool feeds the existing three-wool bed recipe. Mobs use original low-poly 3D cuboid models and a dedicated pixel-art texture atlas; mob entities are transient and are not saved.
 - **Game clock:** fixed 20 ticks per second, independent of frame rate.
 - **Entities:** up to 32 entities with physics and collision.
 - **Achievements and advancements:** persistent unlocks for inventory, gathering wood, crafting, mining stone, tools, furnaces, iron, diamonds, beds and building. Open either screen from the game menu. Advancement criteria can be met early and complete automatically once their parent advancement is unlocked.
@@ -57,6 +57,7 @@ What's new so far
 - **Auto-jump:** walks you up one-block steps.
 - **Sprinting:** double-tap and hold forward to run 30% faster on land. Sprint jumps carry forward momentum; diagonal movement is normalized and the camera widens gradually. Swimming does not receive the land sprint boost.
 - **Mining:** hold 9 to break blocks at 1.8.8 speeds. Tools have tiers and wear out, and blocks drop items you walk over to collect.
+- **Mob damage:** aim at a pig, cow or sheep and press 9 to hit it for one heart of damage. Each animal has 10 HP, so five hits defeat it. The mob flashes red and shows remaining health; sheep also drop raw mutton and one wool block if they have not been sheared. This works in Creative and Survival; wandering traders cannot be hurt.
 - **World:** a sun and moon with a day/night cycle, more common emeralds, Ancient Debris near bedrock, and saplings that grow into trees.
 - **Crafting:** Minecraft's shaped recipes in a 2x2 grid in your inventory and a 3x3 grid at a crafting table (press 7 on one), plus a recipe list beside the grid. Pick a recipe to see its shape in the empty grid, then press 5 to craft it straight from your inventory or 7 to lay it out in the grid. The table makes tools, furnaces, chests, beds, storage blocks and more.
 - **Furnaces:** input, fuel and output slots; each item takes 10 seconds. Coal or charcoal smelts 8 items, a log or plank 1.5. Smelts ores to ingots, sand to glass, cobblestone to stone, raw meat, logs to charcoal and Ancient Debris to netherite scrap. Furnaces keep cooking while their chunk is loaded, and while you watch.
@@ -101,7 +102,7 @@ Controls
 | 8 4 6 2 | Walk (auto-jump climbs steps); double-tap and hold 8 to sprint | Move the cursor / pick a recipe |
 | 5 | Jump (hold in water to swim up) | Take or put down a stack; on the result slot, craft one / in the recipe list, craft one (hold to repeat) |
 | 7 | Place block, use a bucket, or use a chest, furnace, crafting table, bed or smithing table | Take half, or put down one / in the recipe list, lay the recipe out in the grid |
-| 9 | Break block (hold in survival) | |
+| 9 | Attack the mob under the crosshair; otherwise break blocks (hold in survival) | |
 | 1 / 3 | Previous / next hotbar slot | Pick the hotbar slot (block list) |
 | . | Inventory (creative: block list) | Close |
 | enter | | Send a stack to the other section / on the result slot or in the recipe list, craft as many as you can |

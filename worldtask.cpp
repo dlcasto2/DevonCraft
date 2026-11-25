@@ -5,6 +5,7 @@
 #include "player_motion.h"
 #include "entity.h"
 #include "mobs.h"
+#include "mob_renderer.h"
 #include "trader.h"
 #include "stresstest.h"
 #include "platform_time.h"
@@ -136,8 +137,10 @@ void WorldTask::logic()
     input_descend = creative_flight && player_state.mode == GameMode::CREATIVE
                  && keyPressed(KEY_NSPIRE_0);
 
-    // Survival mines while 9 is held; tick() does the work.
-    input_mine = player_state.mode == GameMode::SURVIVAL && keyPressed(KEY_NSPIRE_9);
+    // Key 9 attacks an aimed animal in either mode. In Survival it also
+    // mines blocks when no mob is targeted.
+    input_attack = keyPressed(KEY_NSPIRE_9);
+    input_mine = player_state.mode == GameMode::SURVIVAL && input_attack;
 
     if(has_touchpad)
     {
@@ -253,6 +256,24 @@ void WorldTask::logic()
             return;
         }
 
+        // Key 7 shears the sheep under the crosshair; their wool later regrows
+        // while they graze on grass. Wool is the existing bed-crafting block.
+        if(aim_mob && aim_mob->type == EntityType::MOB && aim_mob->mob_kind == MOB_SHEEP)
+        {
+            const int wool = shearSheep(*aim_mob, mob_rng);
+            if(wool > 0)
+            {
+                const GLFix cx = (aim_mob->box.low_x + aim_mob->box.high_x) / 2;
+                const GLFix cy = (aim_mob->box.low_y + aim_mob->box.high_y) / 2;
+                const GLFix cz = (aim_mob->box.low_z + aim_mob->box.high_z) / 2;
+                spawnDrop(entity_pool, cx, cy, cz, ItemStack(BLOCK_WOOL, static_cast<uint8_t>(wool)), player_inventory);
+                setMessage("Sheep sheared! 1-3 wool.");
+            }
+            else
+                setMessage("Sheep is regrowing wool.");
+            return;
+        }
+
         // Let targeted blocks and containers handle use before food consumes
         // the key. This preserves bed, chest, bucket and special-block actions.
         if(selection_side != AABB::NONE)
@@ -354,13 +375,22 @@ void WorldTask::logic()
             }
         }
     }
-    else if(keyPressed(KEY_NSPIRE_9) && player_state.mode != GameMode::SURVIVAL) //Remove block (creative: instantly)
+    else if(keyPressed(KEY_NSPIRE_9) && player_state.mode != GameMode::SURVIVAL)
     {
-        const BLOCK_WDATA target = selection_side == AABB::NONE ? BLOCK_AIR : world.getBlock(selection_pos.x, selection_pos.y, selection_pos.z);
-        if(selection_side != AABB::NONE && target != BLOCK_BEDROCK)
-            removeBlock(static_cast<int>(selection_pos.x), static_cast<int>(selection_pos.y), static_cast<int>(selection_pos.z), target);
+        // When a mob is under the crosshair, key 9 attacks it instead of
+        // instantly breaking the block behind it. Traders remain peaceful.
+        if(aim_mob && aim_mob->type == EntityType::MOB)
+        {
+            key_held_down = true; // tickMobs() applies the hit and cooldown.
+        }
+        else
+        {
+            const BLOCK_WDATA target = selection_side == AABB::NONE ? BLOCK_AIR : world.getBlock(selection_pos.x, selection_pos.y, selection_pos.z);
+            if(selection_side != AABB::NONE && target != BLOCK_BEDROCK)
+                removeBlock(static_cast<int>(selection_pos.x), static_cast<int>(selection_pos.y), static_cast<int>(selection_pos.z), target);
 
-        key_held_down = true;
+            key_held_down = true;
+        }
     }
     else if(keyPressed(KEY_NSPIRE_1)) //Switch inventory slot
     {
@@ -480,8 +510,15 @@ void WorldTask::tick()
         --jump_tap_ticks;
     sprint_input_state.tick();
 
-    // Build the physics box from the current position, run one tick, read it back.
+    // Build the physics box and clear any overlap caused by a mob moving into
+    // the player on the previous entity tick. The same mob hitboxes then take
+    // part in every axis of player movement and creative flight.
     AABB box{x - player_width/2, y, z - player_width/2, x + player_width/2, y + player_height, z + player_width/2};
+    separatePlayerFromMobs(box, entity_pool, world_collision);
+    x = (box.low_x + box.high_x) / 2;
+    y = box.low_y;
+    z = (box.low_z + box.high_z) / 2;
+    const MobCollisionQuery player_collision(world_collision, entity_pool);
 
     PlayerMotion motion;
     motion.vy = vy;
@@ -498,7 +535,7 @@ void WorldTask::tick()
 
     if(creative_flight && player_state.mode == GameMode::CREATIVE)
     {
-        playerFlyTick(world_collision, box, input_forward, input_strafe,
+        playerFlyTick(player_collision, box, input_forward, input_strafe,
                       input_jump, input_descend, yr, walk);
         motion.vy = 0;
         motion.on_ground = false;
@@ -506,7 +543,7 @@ void WorldTask::tick()
         motion.boost_x = motion.boost_z = 0;   // flying carries no sprint momentum
     }
     else
-        playerTick(world_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump, input_sprint}, yr, walk, auto_jump);
+        playerTick(player_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump, input_sprint}, yr, walk, auto_jump);
 
     sprint_boost_x = motion.boost_x;
     sprint_boost_z = motion.boost_z;
@@ -864,7 +901,7 @@ void WorldTask::beginPlayerDeath()
     mining = MiningState();
     vy = 0;
     input_forward = input_strafe = 0;
-    input_jump = input_sprint = input_descend = input_mine = false;
+    input_jump = input_sprint = input_descend = input_mine = input_attack = false;
     aim_mob = nullptr;
     setMessage("You died. Respawning...");
 }
@@ -1093,6 +1130,16 @@ void WorldTask::tickMobs()
             return;
         }
         steerMob(e, mob_rng);
+
+        if(e.mob_kind == MOB_SHEEP && e.sheared)
+        {
+            const int bx = (((e.box.low_x + e.box.high_x) / 2) / BLOCK_SIZE).floor();
+            const int by = (e.box.low_y / BLOCK_SIZE).floor() - 1;
+            const int bz = (((e.box.low_z + e.box.high_z) / 2) / BLOCK_SIZE).floor();
+            const bool grazing = world.isLoaded(bx, by, bz)
+                              && getBLOCK(world.getBlock(bx, by, bz)) == BLOCK_GRASS;
+            tickSheepRegrowth(e, grazing);
+        }
     });
 
     if(++mob_spawn_timer >= MOB_SPAWN_INTERVAL_TICKS)
@@ -1114,16 +1161,14 @@ void WorldTask::tickMobs()
     if(mob_hit_cooldown > 0)
         --mob_hit_cooldown;
 
-    // Survival: animals can be hit, but the wandering trader stays peaceful.
-    if(input_mine && aim_mob && aim_mob->type == EntityType::MOB)
+    // Aimed mobs consume the attack input so a block behind them is never
+    // mined or broken. This works in Creative and Survival; traders stay peaceful.
+    if(input_attack && aim_mob && aim_mob->type == EntityType::MOB)
     {
-        if(aim_mob->mob_kind == MOB_TRADER)
-            input_mine = false;
-        else if(mob_hit_cooldown == 0)
-        {
+        input_attack = false;
+        input_mine = false;
+        if(aim_mob->mob_kind != MOB_TRADER && mob_hit_cooldown == 0)
             hitMob(*aim_mob);
-            input_mine = false;
-        }
     }
 }
 
@@ -1155,7 +1200,8 @@ void WorldTask::trySpawnPassive()
         const GLFix cx = GLFix(bx * BLOCK_SIZE + BLOCK_SIZE / 2), cz = GLFix(bz * BLOCK_SIZE + BLOCK_SIZE / 2);
         const GLFix low_y = GLFix((by + 1) * BLOCK_SIZE), high_y = low_y + BLOCK_SIZE * 3 / 4;
         const AABB box{cx - half, low_y, cz - half, cx + half, high_y, cz + half};
-        spawnPassive(entity_pool, (r >> 12) % 2 == 0 ? MOB_PIG : MOB_COW, box);
+        const uint8_t kind = static_cast<uint8_t>((r >> 12) % 3);
+        spawnPassive(entity_pool, kind == 0 ? MOB_PIG : kind == 1 ? MOB_COW : MOB_SHEEP, box);
         return;
     }
 }
@@ -1208,15 +1254,28 @@ void WorldTask::hitMob(Entity &e)
 {
     if(e.mob_kind == MOB_TRADER)
         return;
-    mob_hit_cooldown = MOB_HIT_COOLDOWN_TICKS;
-    if(!hurtMob(e, MOB_HIT_DAMAGE))
+
+    const int previous_health = e.health;
+    const bool defeated = hurtMob(e, MOB_HIT_DAMAGE);
+    if(e.health == previous_health)
         return;
 
+    mob_hit_cooldown = MOB_HIT_COOLDOWN_TICKS;
+    if(!defeated)
+    {
+        snprintf(message, sizeof(message), "Mob HP: %d/%d", static_cast<int>(e.health), mobMaxHealth(e.mob_kind));
+        message_timeout = 25;
+        return;
+    }
+
+    setMessage("Mob defeated!");
     const GLFix cx = (e.box.low_x + e.box.high_x) / 2, cy = (e.box.low_y + e.box.high_y) / 2, cz = (e.box.low_z + e.box.high_z) / 2;
     const ItemStack meat = mobDrop(e.mob_kind);
+    const ItemStack wool = mobWoolDrop(e);
     entity_pool.remove(&e);
     aim_mob = nullptr;
     spawnDrop(entity_pool, cx, cy, cz, meat, player_inventory);
+    spawnDrop(entity_pool, cx, cy, cz, wool, player_inventory);
 }
 
 Entity *WorldTask::aimedMob(GLFix ox, GLFix oy, GLFix oz, GLFix dx, GLFix dy, GLFix dz, GLFix block_dist)
@@ -1324,6 +1383,10 @@ void WorldTask::render()
     world.render();
 
     renderEntities(entity_pool);
+
+    // Show the exact mob hitbox only while the crosshair is over that mob.
+    if(aim_mob && aim_mob->type == EntityType::MOB)
+        renderMobHitbox(*aim_mob);
 
     //Draw indication
     glBindTexture(&blockselection);
@@ -1511,7 +1574,7 @@ void WorldTask::resetWorld()
     sprint_input_state.reset();
     sprint_boost_x = sprint_boost_z = 0;
     sprint_fov_ticks = 0;
-    input_jump = input_sprint = input_descend = false;
+    input_jump = input_sprint = input_descend = input_mine = input_attack = false;
     world_state.trader_next_visit = 0;
 }
 

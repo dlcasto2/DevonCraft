@@ -397,19 +397,126 @@ GLFix nglZBufferAt(const unsigned int x, const unsigned int y)
     return z_buffer[x + y * SCREEN_WIDTH];
 }
 
-//Doesn't interpolate colors even if enabled
-void nglDrawLine3D(const VERTEX *v1, const VERTEX *v2)
-{    
-    //TODO: Z-Clipping
 
+namespace {
+
+// Liang-Barsky clipping in projected screen space. Parameters are stored
+// as Q8 raw values so even almost-parallel off-screen edges cannot overflow
+// a GLFix division before they are rejected.
+bool clipLineParameter(GLFix p, GLFix q, int64_t &t0, int64_t &t1)
+{
+    if(p.value == 0)
+        return q >= GLFix(0);
+
+    const int64_t r = (static_cast<int64_t>(q.value) * GLFix::scaleFactor()) / p.value;
+    if(p.value < 0)
+    {
+        if(r > t1)
+            return false;
+        if(r > t0)
+            t0 = r;
+    }
+    else
+    {
+        if(r < t0)
+            return false;
+        if(r < t1)
+            t1 = r;
+    }
+    return true;
+}
+
+VERTEX interpolateProjectedLine(const VERTEX &from, const VERTEX &to, int64_t t_raw)
+{
+    // Do not use GLFix multiplication here: its intermediate is int32_t,
+    // while projected endpoints can be many screen widths apart after
+    // near-plane clipping. Keep the delta-times-parameter product in int64_t.
+    const auto lerp = [t_raw](GLFix a, GLFix b) {
+        GLFix result;
+        result.value = static_cast<int32_t>(
+            static_cast<int64_t>(a.value)
+            + ((static_cast<int64_t>(b.value) - a.value) * t_raw)
+                / GLFix::scaleFactor());
+        return result;
+    };
+
+    VERTEX result = from;
+    result.x = lerp(from.x, to.x);
+    result.y = lerp(from.y, to.y);
+    result.z = lerp(from.z, to.z);
+    return result;
+}
+
+bool clipLineToViewport(VERTEX &a, VERTEX &b)
+{
+    const GLFix dx = b.x - a.x;
+    const GLFix dy = b.y - a.y;
+    int64_t t0 = 0;
+    int64_t t1 = GLFix::scaleFactor();
+
+    if(!clipLineParameter(-dx, a.x, t0, t1)
+       || !clipLineParameter(dx, GLFix(SCREEN_WIDTH - 1) - a.x, t0, t1)
+       || !clipLineParameter(-dy, a.y, t0, t1)
+       || !clipLineParameter(dy, GLFix(SCREEN_HEIGHT - 1) - a.y, t0, t1))
+        return false;
+
+    const VERTEX original_a = a;
+    const VERTEX original_b = b;
+    if(t1 < GLFix::scaleFactor())
+        b = interpolateProjectedLine(original_a, original_b, t1);
+    if(t0 > 0)
+        a = interpolateProjectedLine(original_a, original_b, t0);
+    return true;
+}
+
+} // namespace
+
+// Doesn't interpolate colors even if enabled.
+void nglDrawLine3D(const VERTEX *v1, const VERTEX *v2)
+{
     VERTEX v1_p = *v1, v2_p = *v2;
+    if(!nglClipLineToNearPlane(v1_p, v2_p, nglGetNearPlane()))
+        return;
+
     nglPerspective(&v1_p);
     nglPerspective(&v2_p);
 
-    const GLFix diff_x = v2_p.x - v1_p.x;
-    const GLFix dy = (v2_p.y - v1_p.y) / diff_x;
+    // Keep the raster loops bounded even when a near-plane intersection
+    // projects to a very distant screen coordinate.
+    if(!clipLineToViewport(v1_p, v2_p))
+        return;
 
+    const GLFix diff_x = v2_p.x - v1_p.x;
     const COLOR c = v1_p.c;
+
+    // A perfectly vertical projected line has no X delta. Handle it before
+    // calculating dy/dx, which would otherwise divide by zero on the calculator.
+    if(diff_x == GLFix(0))
+    {
+        if(v2_p.y < v1_p.y)
+            std::swap(v1_p, v2_p);
+
+        const GLFix diff_y = v2_p.y - v1_p.y;
+        if(diff_y == GLFix(0))
+        {
+            pixel(v1_p.x, v1_p.y, v1_p.z, c);
+            return;
+        }
+
+        const GLFix dz = (v2_p.z - v1_p.z) / diff_y;
+        int end_y = v2_p.y;
+        if(end_y >= SCREEN_HEIGHT)
+            end_y = SCREEN_HEIGHT - 1;
+
+        for(; v1_p.y <= GLFix(end_y); ++v1_p.y)
+        {
+            pixel(v1_p.x, v1_p.y, v1_p.z, c);
+            v1_p.z += dz;
+        }
+        return;
+    }
+
+    const GLFix dy = (v2_p.y - v1_p.y) / diff_x;
 
     //Height > width? -> Interpolate X
     if(dy > GLFix(1) || dy < GLFix(-1))

@@ -11,6 +11,8 @@ class CollisionQuery
 public:
     virtual ~CollisionQuery() {}
     virtual bool intersects(const AABB &box) const = 0;
+    // Auto-jump should react to terrain steps, not entity hitboxes.
+    virtual bool intersectsForAutoJump(const AABB &box) const { return intersects(box); }
     // Whether any block the box overlaps is water.
     virtual bool touchesWater(const AABB &/*box*/) const { return false; }
 };

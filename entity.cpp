@@ -40,6 +40,8 @@ void EntityPool::tick(const CollisionQuery &world)
             continue;
 
         ++e.age_ticks;
+        if(e.hurt_ticks > 0)
+            --e.hurt_ticks;
         // Piles expire through removeExpiredPiles, which frees their contents too.
         if(e.type == EntityType::DROPPED_ITEM && e.age_ticks >= DESPAWN_TICKS)
         {

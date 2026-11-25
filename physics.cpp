@@ -62,9 +62,9 @@ bool shouldAutoJump(const CollisionQuery &world, const AABB &box, GLFix dx, GLFi
     if(!on_ground || in_water)
         return false;
 
-    if(!world.intersects(shifted(box, dx, 0, dz)))
+    if(!world.intersectsForAutoJump(shifted(box, dx, 0, dz)))
         return false;   // nothing in the way
 
-    return !world.intersects(shifted(box, 0, BLOCK_SIZE, 0))
-        && !world.intersects(shifted(box, dx, BLOCK_SIZE, dz));
+    return !world.intersectsForAutoJump(shifted(box, 0, BLOCK_SIZE, 0))
+        && !world.intersectsForAutoJump(shifted(box, dx, BLOCK_SIZE, dz));
 }
