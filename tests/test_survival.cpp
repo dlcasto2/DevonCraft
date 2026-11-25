@@ -169,3 +169,25 @@ TEST_CASE("player damage is clamped and reports actual health lost") {
     CHECK(damagePlayer(player, 1) == 0);
     CHECK(player.health == 0);
 }
+
+TEST_CASE("exhaustion cannot drain hunger below zero") {
+    PlayerState player;
+    player.mode = GameMode::SURVIVAL;
+    player.hunger = 0;
+    player.saturation_x100 = 0;
+    addExhaustion(player, Difficulty::HARD, 40000);
+    CHECK(player.hunger == 0);
+    CHECK(player.saturation_x100 == 0);
+    CHECK(player.exhaustion_x1000 < EXHAUSTION_THRESHOLD_X1000);
+}
+
+TEST_CASE("Peaceful saturation never exceeds the current hunger bar") {
+    PlayerState player;
+    player.mode = GameMode::SURVIVAL;
+    player.health = PLAYER_MAX_HEALTH;
+    player.hunger = 2;
+    player.saturation_x100 = 1000;
+    tickSurvivalNeeds(player, Difficulty::PEACEFUL, 0, false, false, true);
+    CHECK(player.hunger == 3);
+    CHECK(player.saturation_x100 == 300);
+}
