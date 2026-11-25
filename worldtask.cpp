@@ -1225,10 +1225,21 @@ void WorldTask::hitMob(Entity &e)
 {
     if(e.mob_kind == MOB_TRADER)
         return;
-    mob_hit_cooldown = MOB_HIT_COOLDOWN_TICKS;
-    if(!hurtMob(e, MOB_HIT_DAMAGE))
+
+    const int previous_health = e.health;
+    const bool defeated = hurtMob(e, MOB_HIT_DAMAGE);
+    if(e.health == previous_health)
         return;
 
+    mob_hit_cooldown = MOB_HIT_COOLDOWN_TICKS;
+    if(!defeated)
+    {
+        snprintf(message, sizeof(message), "Mob HP: %d/%d", static_cast<int>(e.health), mobMaxHealth(e.mob_kind));
+        message_timeout = 25;
+        return;
+    }
+
+    setMessage("Mob defeated!");
     const GLFix cx = (e.box.low_x + e.box.high_x) / 2, cy = (e.box.low_y + e.box.high_y) / 2, cz = (e.box.low_z + e.box.high_z) / 2;
     const ItemStack meat = mobDrop(e.mob_kind);
     entity_pool.remove(&e);
@@ -1532,7 +1543,7 @@ void WorldTask::resetWorld()
     sprint_input_state.reset();
     sprint_boost_x = sprint_boost_z = 0;
     sprint_fov_ticks = 0;
-    input_jump = input_sprint = input_descend = false;
+    input_jump = input_sprint = input_descend = input_mine = input_attack = false;
     world_state.trader_next_visit = 0;
 }
 
