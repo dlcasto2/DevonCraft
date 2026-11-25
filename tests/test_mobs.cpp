@@ -139,3 +139,23 @@ TEST_CASE("dropped items do not become player collision hitboxes") {
     CHECK_FALSE(collision.intersects(AABB{GLFix(120), GLFix(140), GLFix(120),
                                           GLFix(150), GLFix(180), GLFix(150)}));
 }
+
+
+TEST_CASE("mob collision does not trigger terrain auto-jump") {
+    GridWorld terrain;
+    EntityPool pool;
+    REQUIRE(spawnPassive(pool, MOB_PIG,
+        AABB{GLFix(64), GLFix(128), GLFix(150),
+             GLFix(160), GLFix(224), GLFix(246)}) != nullptr);
+    const MobCollisionQuery collision(terrain, pool);
+    const AABB player{GLFix(64 - 51), GLFix(128), GLFix(64 - 51),
+                      GLFix(64 + 51), GLFix(128 + 230), GLFix(64 + 51)};
+
+    CHECK(collision.intersects(AABB{player.low_x, player.low_y, player.low_z + GLFix(10),
+                                   player.high_x, player.high_y, player.high_z + GLFix(10)}));
+    CHECK_FALSE(shouldAutoJump(collision, player, GLFix(0), GLFix(10), true, false));
+
+    // Real block steps still trigger the normal auto-jump check.
+    terrain.solid.insert(std::make_tuple(0, 1, 0));
+    CHECK(shouldAutoJump(collision, player, GLFix(0), GLFix(10), true, false));
+}
