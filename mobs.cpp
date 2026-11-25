@@ -6,7 +6,7 @@
 
 namespace {
 
-constexpr int PIG_HEALTH = 10, COW_HEALTH = 10;   // five hearts each, as in 1.8.8
+constexpr int PIG_HEALTH = 10, COW_HEALTH = 10, SHEEP_HEALTH = 10; // five hearts each
 constexpr int WALK_TICKS_MIN = 40, WALK_TICKS_RANGE = 80;
 constexpr int STAND_HEADING = 4;
 constexpr int DAYLIGHT_FOR_SPAWNING = 128;        // half of full daylight (daylightFactor is 0-256)
@@ -21,22 +21,60 @@ GLFix walkSpeed()
 
 int mobMaxHealth(uint8_t kind)
 {
-    if(kind == MOB_TRADER)
-        return 0; // Traders are peaceful and cannot be killed.
-    return kind == MOB_COW ? COW_HEALTH : PIG_HEALTH;
+    switch(kind)
+    {
+    case MOB_TRADER: return 0; // Traders are peaceful and cannot be killed.
+    case MOB_COW: return COW_HEALTH;
+    case MOB_SHEEP: return SHEEP_HEALTH;
+    default: return PIG_HEALTH;
+    }
 }
 
 ItemStack mobDrop(uint8_t kind)
 {
-    if(kind == MOB_TRADER)
+    switch(kind)
+    {
+    case MOB_TRADER: return ItemStack();
+    case MOB_COW: return ItemStack(ITEM_BEEF_RAW, 1);
+    case MOB_SHEEP: return ItemStack(ITEM_MUTTON_RAW, 1);
+    default: return ItemStack(ITEM_PORK_RAW, 1);
+    }
+}
+
+ItemStack mobWoolDrop(const Entity &e)
+{
+    if(e.type != EntityType::MOB || e.mob_kind != MOB_SHEEP || e.sheared)
         return ItemStack();
-    return kind == MOB_COW ? ItemStack(ITEM_BEEF_RAW, 1) : ItemStack(ITEM_PORK_RAW, 1);
+    return ItemStack(BLOCK_WOOL, 1);
 }
 
 uint32_t mobRandom(uint32_t &rng)
 {
     rng = rng * 1664525u + 1013904223u;
     return rng >> 8;
+}
+
+int shearSheep(Entity &e, uint32_t &rng)
+{
+    if(e.type != EntityType::MOB || e.mob_kind != MOB_SHEEP || e.sheared || e.health <= 0)
+        return 0;
+    e.sheared = true;
+    e.wool_regrow_ticks = MOB_SHEEP_REGROW_TICKS;
+    return 1 + static_cast<int>(mobRandom(rng) % 3);
+}
+
+bool tickSheepRegrowth(Entity &e, bool grazing)
+{
+    if(e.type != EntityType::MOB || e.mob_kind != MOB_SHEEP || !e.sheared || !grazing)
+        return false;
+    if(e.wool_regrow_ticks > 1)
+    {
+        --e.wool_regrow_ticks;
+        return false;
+    }
+    e.wool_regrow_ticks = 0;
+    e.sheared = false;
+    return true;
 }
 
 Entity *spawnPassive(EntityPool &pool, uint8_t kind, const AABB &box)
