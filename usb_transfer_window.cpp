@@ -58,6 +58,9 @@ void disableUsbTransferWindow()
     if(!transfer_window_active)
         return;
 
+    // Keep the ARM CPU IRQ gate closed while restoring the Nucleus mask.
+    // Reapply the previous CPU IRQ state only after both layers are consistent.
+    setCpuIrqMasked(true);
     TCT_Local_Control_Interrupts(previous_nucleus_interrupt_mask);
     setCpuIrqMasked(previous_cpu_irq_masked);
     transfer_window_active = false;
