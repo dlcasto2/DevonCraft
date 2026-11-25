@@ -6,12 +6,12 @@ namespace {
 
 uint8_t clampHunger(int value)
 {
-    return static_cast<uint8_t>(std::max(0, std::min(PLAYER_MAX_HUNGER, value)));
+    return static_cast<uint8_t>(std::max(0, std::min<int>(PLAYER_MAX_HUNGER, value)));
 }
 
 uint8_t clampHealth(int value)
 {
-    return static_cast<uint8_t>(std::max(0, std::min(PLAYER_MAX_HEALTH, value)));
+    return static_cast<uint8_t>(std::max(0, std::min<int>(PLAYER_MAX_HEALTH, value)));
 }
 
 void clampSaturation(PlayerState &player)
