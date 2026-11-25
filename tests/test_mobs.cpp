@@ -200,3 +200,57 @@ TEST_CASE("invalid damage does not hurt mobs") {
     CHECK(cow->health == mobMaxHealth(MOB_COW));
     CHECK(cow->hurt_ticks == 0);
 }
+
+
+TEST_CASE("sheep have the same health as pigs and cows and drop mutton and wool")
+{
+    EntityPool pool;
+    Entity *sheep = spawnPassive(pool, MOB_SHEEP, AABB());
+    REQUIRE(sheep != nullptr);
+    CHECK(sheep->health == 10);
+    CHECK(mobMaxHealth(MOB_SHEEP) == mobMaxHealth(MOB_PIG));
+    CHECK(mobMaxHealth(MOB_SHEEP) == mobMaxHealth(MOB_COW));
+    CHECK(mobDrop(MOB_SHEEP).id == ITEM_MUTTON_RAW);
+    CHECK(mobWoolDrop(*sheep).id == BLOCK_WOOL);
+    CHECK(mobWoolDrop(*sheep).count == 1);
+}
+
+TEST_CASE("shearing gives one to three wool, cannot repeat, and fleece regrows only after grazing")
+{
+    EntityPool pool;
+    Entity *sheep = spawnPassive(pool, MOB_SHEEP, AABB());
+    REQUIRE(sheep != nullptr);
+    uint32_t rng = 12345;
+    const int wool = shearSheep(*sheep, rng);
+    CHECK(wool >= 1);
+    CHECK(wool <= 3);
+    CHECK(sheep->sheared);
+    CHECK(sheep->wool_regrow_ticks == MOB_SHEEP_REGROW_TICKS);
+    CHECK(mobWoolDrop(*sheep).empty());
+    CHECK(shearSheep(*sheep, rng) == 0);
+
+    // Waiting away from grass does not advance wool regrowth.
+    for(int i = 0; i < 5; ++i)
+        CHECK_FALSE(tickSheepRegrowth(*sheep, false));
+    CHECK(sheep->wool_regrow_ticks == MOB_SHEEP_REGROW_TICKS);
+
+    for(int i = 0; i < MOB_SHEEP_REGROW_TICKS - 1; ++i)
+        CHECK_FALSE(tickSheepRegrowth(*sheep, true));
+    CHECK(tickSheepRegrowth(*sheep, true));
+    CHECK_FALSE(sheep->sheared);
+    CHECK(sheep->wool_regrow_ticks == 0);
+    CHECK(mobWoolDrop(*sheep).id == BLOCK_WOOL);
+}
+
+TEST_CASE("dead or non-sheep mobs cannot be sheared")
+{
+    EntityPool pool;
+    Entity *pig = spawnPassive(pool, MOB_PIG, AABB());
+    Entity *dead_sheep = spawnPassive(pool, MOB_SHEEP, AABB());
+    REQUIRE(pig != nullptr);
+    REQUIRE(dead_sheep != nullptr);
+    uint32_t rng = 7;
+    CHECK(shearSheep(*pig, rng) == 0);
+    CHECK(hurtMob(*dead_sheep, 10));
+    CHECK(shearSheep(*dead_sheep, rng) == 0);
+}
