@@ -30,7 +30,14 @@ bool villageSiteForCell(int cell_x, int cell_z, uint32_t seed, VillageSite &site
 // current block palette.
 bool villageBiomeAllowed(Biome biome);
 
-// Rejects sites with water or sharply changing elevation across the village.
+// Rejects sites whose house or well footprints are wet or too uneven to level.
+// Water elsewhere in the village is fine: farm and road tiles that land in
+// water are skipped by the generator.
 bool villageSiteSuitable(const PerlinNoise &noise, const VillageSite &site);
+
+// Whether the column (x, z) lies in the footprint of a suitable village.
+// Tree growth is blocked only where the generator can actually place a
+// settlement, so unused candidate cells do not become treeless patches.
+bool villageReserved(const PerlinNoise &noise, uint32_t seed, int x, int z);
 
 #endif // VILLAGE_H

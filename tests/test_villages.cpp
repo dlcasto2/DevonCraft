@@ -81,3 +81,66 @@ TEST_CASE("seeded overworld terrain produces suitable village sites") {
         }
     CHECK(suitable > 0);
 }
+
+TEST_CASE("village footprints reserve the columns of every suitable building") {
+    for(unsigned seed : {12345u, 42u}) {
+        PerlinNoise noise(seed);
+        int checked = 0;
+        for(int cx = -12; cx <= 12; ++cx)
+            for(int cz = -12; cz <= 12; ++cz) {
+                VillageSite site = {};
+                if(!villageSiteForCell(cx, cz, seed, site) || !villageSiteSuitable(noise, site))
+                    continue;
+                ++checked;
+                // the well, the four houses (the blacksmith is one of them) and the farm
+                CHECK(villageReserved(noise, seed, site.x, site.z));
+                CHECK(villageReserved(noise, seed, site.x + 8, site.z + 8));
+                CHECK(villageReserved(noise, seed, site.x - 8, site.z - 8));
+                CHECK(villageReserved(noise, seed, site.x, site.z + 14));
+            }
+        CHECK(checked > 0);
+    }
+}
+
+TEST_CASE("village reservation stays away from open ground far from any site") {
+    // The grid cell (0, 0) has a candidate for this seed; a point 60 blocks away
+    // lies beyond every footprint and every neighbouring cell's reach.
+    PerlinNoise noise(12345u);
+    VillageSite site = {};
+    REQUIRE(villageSiteForCell(0, 0, 12345u, site));
+    CHECK_FALSE(villageReserved(noise, 12345u, site.x + 60, site.z + 60));
+    CHECK_FALSE(villageReserved(noise, 12345u, site.x - 60, site.z - 60));
+}
+
+TEST_CASE("unsuitable village candidates do not reserve tree-growth space") {
+    int unsuitable_sites = 0;
+    for(unsigned seed : {12345u, 42u, 777u}) {
+        PerlinNoise noise(seed);
+        for(int cx = -20; cx <= 20 && unsuitable_sites < 10; ++cx)
+            for(int cz = -20; cz <= 20 && unsuitable_sites < 10; ++cz) {
+                VillageSite site = {};
+                if(!villageSiteForCell(cx, cz, seed, site) || villageSiteSuitable(noise, site))
+                    continue;
+
+                // An unsuitable candidate cannot create an invisible clearing.
+                CHECK_FALSE(villageReserved(noise, seed, site.x, site.z));
+                CHECK_FALSE(villageReserved(noise, seed, site.x - 8, site.z - 8));
+                ++unsuitable_sites;
+            }
+    }
+    CHECK(unsuitable_sites > 0);
+}
+
+TEST_CASE("the relaxed suitability rule still yields sites on real terrain") {
+    for(unsigned seed : {12345u, 1u, 42u, 777u, 9001u}) {
+        PerlinNoise noise(seed);
+        int suitable = 0;
+        for(int cx = -12; cx <= 12; ++cx)
+            for(int cz = -12; cz <= 12; ++cz) {
+                VillageSite site = {};
+                if(villageSiteForCell(cx, cz, seed, site) && villageSiteSuitable(noise, site))
+                    ++suitable;
+            }
+        CHECK(suitable >= 5);
+    }
+}
