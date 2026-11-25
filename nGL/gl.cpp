@@ -428,12 +428,22 @@ bool clipLineParameter(GLFix p, GLFix q, int64_t &t0, int64_t &t1)
 
 VERTEX interpolateProjectedLine(const VERTEX &from, const VERTEX &to, int64_t t_raw)
 {
-    GLFix t;
-    t.value = static_cast<int32_t>(t_raw);
+    // Do not use GLFix multiplication here: its intermediate is int32_t,
+    // while projected endpoints can be many screen widths apart after
+    // near-plane clipping. Keep the delta-times-parameter product in int64_t.
+    const auto lerp = [t_raw](GLFix a, GLFix b) {
+        GLFix result;
+        result.value = static_cast<int32_t>(
+            static_cast<int64_t>(a.value)
+            + ((static_cast<int64_t>(b.value) - a.value) * t_raw)
+                / GLFix::scaleFactor());
+        return result;
+    };
+
     VERTEX result = from;
-    result.x = from.x + (to.x - from.x) * t;
-    result.y = from.y + (to.y - from.y) * t;
-    result.z = from.z + (to.z - from.z) * t;
+    result.x = lerp(from.x, to.x);
+    result.y = lerp(from.y, to.y);
+    result.z = lerp(from.z, to.z);
     return result;
 }
 
