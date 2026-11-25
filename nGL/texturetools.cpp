@@ -92,6 +92,19 @@ static bool skip_space(FILE *file)
     return true;
 }
 
+// A binary P6 raster begins immediately after one header separator. Do not
+// use skip_space() here: image bytes may themselves be ASCII whitespace, and
+// consuming them would shift every RGB triplet in the loaded atlas.
+static bool consumePpmRasterSeparator(FILE *file)
+{
+    // P6 has exactly one whitespace separator after maxval. Consume exactly
+    // that byte: a CRLF sequence is not special here because the following LF
+    // may be the first byte of the binary raster.
+    const int separator = getc(file);
+    return separator == ' ' || separator == '\t' || separator == '\n'
+        || separator == '\r' || separator == '\v' || separator == '\f';
+}
+
 //PAM-Loader
 static TEXTURE* loadTextureFromFile_P7(FILE *texture_file)
 {
@@ -214,8 +227,10 @@ TEXTURE* loadTextureFromFile(const char* filename)
     if(!validTextureDimensions(width, height))
         return nullptr;
 
-    if(!skip_space(texture_file))
-        return texture;
+    // Consume only the separator after maxval. The next byte belongs to the
+    // binary raster, even when its value is space, tab, carriage return or LF.
+    if(!consumePpmRasterSeparator(texture_file))
+        return nullptr;
 
     texture = newTexture(width, height);
     if(!texture)
