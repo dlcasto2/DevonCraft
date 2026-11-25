@@ -70,8 +70,9 @@ static bool drawTriangle(ProcessedPosition *processed, const IndexedVertex &low,
     for(unsigned int i = 0; i < clipped_count; ++i)
         nglPerspective(&clipped[i]);
 
-    // Preserve the old mesh path's conservative behavior for clipped quads.
-    if(clipped_count == 3 && backface_culling
+    // Clipping preserves polygon winding. Cull clipped triangles and quads
+    // consistently before fan-triangulating the visible polygon.
+    if(backface_culling
        && nglIsBackface(&clipped[0], &clipped[1], &clipped[2]))
         return false;
 
