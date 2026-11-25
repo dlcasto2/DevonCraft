@@ -35,9 +35,9 @@ bool villageBiomeAllowed(Biome biome);
 // water are skipped by the generator.
 bool villageSiteSuitable(const PerlinNoise &noise, const VillageSite &site);
 
-// Whether the column (x, z) lies in the footprint of a village that could be
-// built at any candidate site nearby. Trees keep out of these columns, so a
-// tree from a neighbouring chunk cannot grow into a house.
-bool villageReserved(uint32_t seed, int x, int z);
+// Whether the column (x, z) lies in the footprint of a suitable village.
+// Tree growth is blocked only where the generator can actually place a
+// settlement, so unused candidate cells do not become treeless patches.
+bool villageReserved(const PerlinNoise &noise, uint32_t seed, int x, int z);
 
 #endif // VILLAGE_H
