@@ -256,6 +256,24 @@ void WorldTask::logic()
             return;
         }
 
+        // Key 7 shears the sheep under the crosshair; their wool later regrows
+        // while they graze on grass. Wool is the existing bed-crafting block.
+        if(aim_mob && aim_mob->type == EntityType::MOB && aim_mob->mob_kind == MOB_SHEEP)
+        {
+            const int wool = shearSheep(*aim_mob, mob_rng);
+            if(wool > 0)
+            {
+                const GLFix cx = (aim_mob->box.low_x + aim_mob->box.high_x) / 2;
+                const GLFix cy = (aim_mob->box.low_y + aim_mob->box.high_y) / 2;
+                const GLFix cz = (aim_mob->box.low_z + aim_mob->box.high_z) / 2;
+                spawnDrop(entity_pool, cx, cy, cz, ItemStack(BLOCK_WOOL, static_cast<uint8_t>(wool)), player_inventory);
+                setMessage("Sheep sheared! 1-3 wool.");
+            }
+            else
+                setMessage("Sheep is regrowing wool.");
+            return;
+        }
+
         // Let targeted blocks and containers handle use before food consumes
         // the key. This preserves bed, chest, bucket and special-block actions.
         if(selection_side != AABB::NONE)
@@ -1112,6 +1130,16 @@ void WorldTask::tickMobs()
             return;
         }
         steerMob(e, mob_rng);
+
+        if(e.mob_kind == MOB_SHEEP && e.sheared)
+        {
+            const int bx = (((e.box.low_x + e.box.high_x) / 2) / BLOCK_SIZE).floor();
+            const int by = (e.box.low_y / BLOCK_SIZE).floor() - 1;
+            const int bz = (((e.box.low_z + e.box.high_z) / 2) / BLOCK_SIZE).floor();
+            const bool grazing = world.isLoaded(bx, by, bz)
+                              && getBLOCK(world.getBlock(bx, by, bz)) == BLOCK_GRASS;
+            tickSheepRegrowth(e, grazing);
+        }
     });
 
     if(++mob_spawn_timer >= MOB_SPAWN_INTERVAL_TICKS)
@@ -1172,7 +1200,8 @@ void WorldTask::trySpawnPassive()
         const GLFix cx = GLFix(bx * BLOCK_SIZE + BLOCK_SIZE / 2), cz = GLFix(bz * BLOCK_SIZE + BLOCK_SIZE / 2);
         const GLFix low_y = GLFix((by + 1) * BLOCK_SIZE), high_y = low_y + BLOCK_SIZE * 3 / 4;
         const AABB box{cx - half, low_y, cz - half, cx + half, high_y, cz + half};
-        spawnPassive(entity_pool, (r >> 12) % 2 == 0 ? MOB_PIG : MOB_COW, box);
+        const uint8_t kind = static_cast<uint8_t>((r >> 12) % 3);
+        spawnPassive(entity_pool, kind == 0 ? MOB_PIG : kind == 1 ? MOB_COW : MOB_SHEEP, box);
         return;
     }
 }
@@ -1242,9 +1271,11 @@ void WorldTask::hitMob(Entity &e)
     setMessage("Mob defeated!");
     const GLFix cx = (e.box.low_x + e.box.high_x) / 2, cy = (e.box.low_y + e.box.high_y) / 2, cz = (e.box.low_z + e.box.high_z) / 2;
     const ItemStack meat = mobDrop(e.mob_kind);
+    const ItemStack wool = mobWoolDrop(e);
     entity_pool.remove(&e);
     aim_mob = nullptr;
     spawnDrop(entity_pool, cx, cy, cz, meat, player_inventory);
+    spawnDrop(entity_pool, cx, cy, cz, wool, player_inventory);
 }
 
 Entity *WorldTask::aimedMob(GLFix ox, GLFix oy, GLFix oz, GLFix dx, GLFix dy, GLFix dz, GLFix block_dist)
