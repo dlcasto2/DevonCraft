@@ -57,6 +57,7 @@ What's new so far
 - **Auto-jump:** walks you up one-block steps.
 - **Sprinting:** double-tap and hold forward to run 30% faster on land. Sprint jumps carry forward momentum; diagonal movement is normalized and the camera widens gradually. Swimming does not receive the land sprint boost.
 - **Mining:** hold 9 to break blocks at 1.8.8 speeds. Tools have tiers and wear out, and blocks drop items you walk over to collect.
+- **Mob damage:** aim at a pig or cow and press 9 to hit it for one heart of damage. Five hits defeat it and let it drop its meat. This also works in Creative; wandering traders cannot be hurt.
 - **World:** a sun and moon with a day/night cycle, more common emeralds, Ancient Debris near bedrock, and saplings that grow into trees.
 - **Crafting:** Minecraft's shaped recipes in a 2x2 grid in your inventory and a 3x3 grid at a crafting table (press 7 on one), plus a recipe list beside the grid. Pick a recipe to see its shape in the empty grid, then press 5 to craft it straight from your inventory or 7 to lay it out in the grid. The table makes tools, furnaces, chests, beds, storage blocks and more.
 - **Furnaces:** input, fuel and output slots; each item takes 10 seconds. Coal or charcoal smelts 8 items, a log or plank 1.5. Smelts ores to ingots, sand to glass, cobblestone to stone, raw meat, logs to charcoal and Ancient Debris to netherite scrap. Furnaces keep cooking while their chunk is loaded, and while you watch.
@@ -101,7 +102,7 @@ Controls
 | 8 4 6 2 | Walk (auto-jump climbs steps); double-tap and hold 8 to sprint | Move the cursor / pick a recipe |
 | 5 | Jump (hold in water to swim up) | Take or put down a stack; on the result slot, craft one / in the recipe list, craft one (hold to repeat) |
 | 7 | Place block, use a bucket, or use a chest, furnace, crafting table, bed or smithing table | Take half, or put down one / in the recipe list, lay the recipe out in the grid |
-| 9 | Break block (hold in survival) | |
+| 9 | Attack the mob under the crosshair; otherwise break blocks (hold in survival) | |
 | 1 / 3 | Previous / next hotbar slot | Pick the hotbar slot (block list) |
 | . | Inventory (creative: block list) | Close |
 | enter | | Send a stack to the other section / on the result slot or in the recipe list, craft as many as you can |
