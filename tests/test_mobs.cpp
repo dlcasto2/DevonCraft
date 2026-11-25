@@ -254,3 +254,18 @@ TEST_CASE("dead or non-sheep mobs cannot be sheared")
     CHECK(hurtMob(*dead_sheep, 10));
     CHECK(shearSheep(*dead_sheep, rng) == 0);
 }
+
+
+TEST_CASE("sheep take five one-heart hits just like pigs and cows")
+{
+    EntityPool pool;
+    Entity *sheep = spawnPassive(pool, MOB_SHEEP, AABB());
+    REQUIRE(sheep != nullptr);
+    for(int i = 0; i < 4; ++i)
+    {
+        CHECK_FALSE(hurtMob(*sheep, MOB_HIT_DAMAGE));
+        CHECK(sheep->health == 10 - (i + 1) * 2);
+    }
+    CHECK(hurtMob(*sheep, MOB_HIT_DAMAGE));
+    CHECK(sheep->health == 0);
+}
