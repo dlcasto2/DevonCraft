@@ -15,7 +15,7 @@ struct Entity {
     GLFix vx = 0, vy = 0, vz = 0;
     int16_t health = 0;
     uint16_t age_ticks = 0;
-    uint8_t invulnerable_ticks = 0;
+    uint8_t hurt_ticks = 0;
     bool on_ground = false;
     ItemStack item;
     uint8_t pile_index = 0;
