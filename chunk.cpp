@@ -11,6 +11,7 @@
 #include "biome.h"
 #include "trees.h"
 #include "villagegen.h"
+#include "village.h"
 #include "lighting.h"
 #include "fastmath.h"
 #include "blockrenderer.h"
@@ -833,8 +834,18 @@ bool Chunk::placeTree(TreeKind kind, int x, int y, int z, uint32_t rnd)
         }
         // Tree shapes place their base trunk block first. If it cannot be
         // placed, reject the tree rather than leaving a floating crown.
-        if(i == 0 && (!room || t.dx != 0 || t.dy != 0 || t.dz != 0 || t.block != logFor(kind)))
+        // A tree rooted inside a village footprint must fail as a whole. This
+        // also keeps saplings from being consumed when growth is blocked.
+        const bool reserved = villageReserved(world.worldSeed(),
+                                              bx + this->x * SIZE,
+                                              bz + this->z * SIZE);
+        if(i == 0 && (!room || reserved || t.dx != 0 || t.dy != 0 || t.dz != 0 || t.block != logFor(kind)))
             return false;
+
+        // Block branches and trunks from neighbouring chunks too, so a tree
+        // generated later cannot grow through an already-built settlement.
+        if(room && reserved)
+            room = false;
 
         if(room)
             setGlobalBlockRelative(bx, by, bz, t.block);
