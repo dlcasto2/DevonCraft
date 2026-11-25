@@ -248,3 +248,42 @@ void renderMob(const Entity &mob)
             pig(mob);
     }
 }
+
+
+// The box is drawn without a texture so the outline remains a clear, fixed
+// colour over the mob model and the world behind it.
+void renderMobHitbox(const Entity &mob)
+{
+    const AABB &b = mob.box;
+    const COLOR outline = 0x07FF; // cyan
+    const VERTEX v[8] = {
+        {b.low_x,  b.low_y,  b.low_z,  0, 0, outline},
+        {b.high_x, b.low_y,  b.low_z,  0, 0, outline},
+        {b.low_x,  b.high_y, b.low_z,  0, 0, outline},
+        {b.high_x, b.high_y, b.low_z,  0, 0, outline},
+        {b.low_x,  b.low_y,  b.high_z, 0, 0, outline},
+        {b.high_x, b.low_y,  b.high_z, 0, 0, outline},
+        {b.low_x,  b.high_y, b.high_z, 0, 0, outline},
+        {b.high_x, b.high_y, b.high_z, 0, 0, outline}
+    };
+
+    glBindTexture(nullptr);
+    glBegin(GL_LINE_STRIP);
+    nglAddVertex(v[0]); nglAddVertex(v[1]); nglAddVertex(v[5]); nglAddVertex(v[4]); nglAddVertex(v[0]);
+    glEnd();
+    glBegin(GL_LINE_STRIP);
+    nglAddVertex(v[2]); nglAddVertex(v[3]); nglAddVertex(v[7]); nglAddVertex(v[6]); nglAddVertex(v[2]);
+    glEnd();
+    glBegin(GL_LINE_STRIP);
+    nglAddVertex(v[0]); nglAddVertex(v[2]);
+    glEnd();
+    glBegin(GL_LINE_STRIP);
+    nglAddVertex(v[1]); nglAddVertex(v[3]);
+    glEnd();
+    glBegin(GL_LINE_STRIP);
+    nglAddVertex(v[4]); nglAddVertex(v[6]);
+    glEnd();
+    glBegin(GL_LINE_STRIP);
+    nglAddVertex(v[5]); nglAddVertex(v[7]);
+    glEnd();
+}
