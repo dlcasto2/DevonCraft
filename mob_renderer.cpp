@@ -255,7 +255,7 @@ void renderMob(const Entity &mob)
 void renderMobHitbox(const Entity &mob)
 {
     const AABB &b = mob.box;
-    const COLOR outline = 0x07FF; // cyan
+    const COLOR outline = mob.invulnerable_ticks > 0 ? 0xF800 : 0x07FF; // red while hurt, cyan otherwise
     const VERTEX v[8] = {
         {b.low_x,  b.low_y,  b.low_z,  0, 0, outline},
         {b.high_x, b.low_y,  b.low_z,  0, 0, outline},
