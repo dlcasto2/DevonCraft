@@ -16,6 +16,7 @@ constexpr int MOB_MAX_PASSIVE = 6;             // most passive mobs in the world
 constexpr int MOB_SPAWN_INTERVAL_TICKS = 200;  // ten seconds between spawn tries
 constexpr int MOB_HIT_COOLDOWN_TICKS = 10;     // half a second between hits
 constexpr int MOB_HIT_DAMAGE = 2;              // one heart per hit with bare hands
+constexpr int MOB_HURT_FLASH_TICKS = 8;         // briefly show a red hit outline
 constexpr int MOB_DESPAWN_BLOCKS = 48;         // mobs farther than this from the player go away
 
 // Unit steps for headings 0-3: +x, +z, -x, -z.
