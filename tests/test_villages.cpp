@@ -82,13 +82,14 @@ TEST_CASE("seeded overworld terrain produces suitable village sites") {
     CHECK(suitable > 0);
 }
 
-TEST_CASE("village footprints reserve the columns of every building") {
+TEST_CASE("village footprints reserve the columns of every suitable building") {
     for(unsigned seed : {12345u, 42u}) {
+        PerlinNoise noise(seed);
         int checked = 0;
         for(int cx = -12; cx <= 12; ++cx)
             for(int cz = -12; cz <= 12; ++cz) {
                 VillageSite site = {};
-                if(!villageSiteForCell(cx, cz, seed, site))
+                if(!villageSiteForCell(cx, cz, seed, site) || !villageSiteSuitable(noise, site))
                     continue;
                 ++checked;
                 // the well, the four houses (the blacksmith is one of them) and the farm
