@@ -486,6 +486,8 @@ void WorldTask::tick()
     PlayerMotion motion;
     motion.vy = vy;
     motion.on_ground = can_jump;
+    motion.boost_x = sprint_boost_x;
+    motion.boost_z = sprint_boost_z;
 
     // Keep the previous position for sprint exhaustion and fall-distance tracking.
     const GLFix previous_x = x, previous_y = y, previous_z = z;
@@ -501,9 +503,21 @@ void WorldTask::tick()
         motion.vy = 0;
         motion.on_ground = false;
         motion.swimming = false;
+        motion.boost_x = motion.boost_z = 0;   // flying carries no sprint momentum
     }
     else
         playerTick(world_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump, input_sprint}, yr, walk, auto_jump);
+
+    sprint_boost_x = motion.boost_x;
+    sprint_boost_z = motion.boost_z;
+    // Running into a wall ends the sprint. Holding forward doesn't restart it.
+    if(motion.sprint_stopped)
+        sprint_input_state.stop();
+    // The view widens over SPRINT_FOV_TICKS ticks while sprinting, and narrows back the same way.
+    if(motion.sprinting && sprint_fov_ticks < SPRINT_FOV_TICKS)
+        ++sprint_fov_ticks;
+    else if(!motion.sprinting && sprint_fov_ticks > 0)
+        --sprint_fov_ticks;
 
     x = (box.low_x + box.high_x) / 2;
     y = box.low_y;
@@ -844,6 +858,9 @@ void WorldTask::beginPlayerDeath()
     }
 
     death_ticks = 40;
+    sprint_input_state.reset();
+    sprint_boost_x = sprint_boost_z = 0;
+    sprint_fov_ticks = 0;
     mining = MiningState();
     vy = 0;
     input_forward = input_strafe = 0;
@@ -883,6 +900,9 @@ void WorldTask::respawnPlayer()
 
     xr = yr = 0;
     vy = 0;
+    sprint_input_state.reset();
+    sprint_boost_x = sprint_boost_z = 0;
+    sprint_fov_ticks = 0;
     can_jump = false;
     in_water = false;
     creative_flight = false;
@@ -1286,6 +1306,9 @@ void WorldTask::render()
     nglSetColor(static_cast<COLOR>(((sky_r >> 3) << 11) | ((sky_g >> 2) << 5) | (sky_b >> 3)));
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    // The near plane sets the projection's scale. Sprinting narrows it to widen the view.
+    nglSetNearPlane(sprintNearPlane(GLFix(static_cast<int>(settings_task.getValue(SettingsTask::NEARPLANE_Z))), sprint_fov_ticks));
+
     glPushMatrix();
 
     //Inverted rotation of the world
@@ -1486,6 +1509,8 @@ void WorldTask::resetWorld()
     jump_key_was_down = false;
     jump_tap_ticks = 0;
     sprint_input_state.reset();
+    sprint_boost_x = sprint_boost_z = 0;
+    sprint_fov_ticks = 0;
     input_jump = input_sprint = input_descend = false;
     world_state.trader_next_visit = 0;
 }
