@@ -89,6 +89,48 @@ TEST_CASE("jump only from the ground") {
     CHECK(m.vy < vy1); CHECK(box.low_y > y1);
 }
 
+// Match Chunk::intersects: touching a block face still counts as collision.
+struct TouchingGridWorld : GridWorld {
+    bool intersects(const AABB &box) const override {
+        for(const auto &cell : solid) {
+            AABB block(GLFix(std::get<0>(cell) * BLOCK_SIZE),
+                       GLFix(std::get<1>(cell) * BLOCK_SIZE),
+                       GLFix(std::get<2>(cell) * BLOCK_SIZE),
+                       GLFix((std::get<0>(cell) + 1) * BLOCK_SIZE),
+                       GLFix((std::get<1>(cell) + 1) * BLOCK_SIZE),
+                       GLFix((std::get<2>(cell) + 1) * BLOCK_SIZE));
+            AABB candidate = box;
+            if(block.intersects(candidate))
+                return true;
+        }
+        return false;
+    }
+};
+
+TEST_CASE("player can start a jump in a one-block-wide two-block-tall tunnel") {
+    TouchingGridWorld w;
+    for(int z = -1; z <= 1; ++z) {
+        w.solid.insert(std::make_tuple(0, 0, z));   // floor
+        w.solid.insert(std::make_tuple(0, 3, z));   // ceiling: two air blocks above the floor
+        w.solid.insert(std::make_tuple(-1, 1, z));  // one-block-wide passage walls
+        w.solid.insert(std::make_tuple(-1, 2, z));
+        w.solid.insert(std::make_tuple(1, 1, z));
+        w.solid.insert(std::make_tuple(1, 2, z));
+    }
+
+    AABB box = playerBoxAt(64, BLOCK_SIZE, 64);
+    PlayerMotion motion;
+    motion.on_ground = true;
+    const GLFix start_y = box.low_y;
+
+    playerTick(w, box, motion, PlayerInput{0, 0, true}, GLFix(0), GLFix(10), false);
+
+    CHECK(box.low_y > start_y);
+    CHECK(box.high_y < GLFix(3 * BLOCK_SIZE));
+    CHECK(box.low_x > GLFix(0));
+    CHECK(box.high_x < GLFix(BLOCK_SIZE));
+}
+
 TEST_CASE("creative flight moves vertically and respects ceiling and floor collisions") {
     GridWorld w;
     w.solid.insert(std::make_tuple(0, 0, 0)); // floor
@@ -98,10 +140,15 @@ TEST_CASE("creative flight moves vertically and respects ceiling and floor colli
     playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
     CHECK(box.low_y == GLFix(144));
 
-    // A second ascent would push the two-block player into the ceiling.
+    // With the 1.7-block player collider, a second 16-unit ascent still fits;
+    // the third would intersect the ceiling and must be blocked.
     playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
-    CHECK(box.low_y == GLFix(144));
+    CHECK(box.low_y == GLFix(160));
+    playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(160));
 
+    playerFlyTick(w, box, 0, 0, false, true, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(144));
     playerFlyTick(w, box, 0, 0, false, true, GLFix(0), GLFix(16));
     CHECK(box.low_y == GLFix(128));
 
