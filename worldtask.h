@@ -69,6 +69,8 @@ private:
     bool jump_key_was_down = false;
     unsigned char jump_tap_ticks = 0; // Window for the second press of 5.
     DoubleTapSprint sprint_input_state;
+    GLFix sprint_boost_x = 0, sprint_boost_z = 0; // momentum from a sprint jump, carried between ticks
+    int sprint_fov_ticks = 0;                      // 0 walking .. SPRINT_FOV_TICKS sprinting
 
     int8_t input_forward = 0, input_strafe = 0; //Set by logic(), used by tick()
     bool input_jump = false, input_sprint = false, input_descend = false, input_mine = false;
