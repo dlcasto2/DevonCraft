@@ -63,8 +63,14 @@ TEST_CASE("near-plane clipping handles two vertices behind the camera")
     const unsigned int count = nglClipTriangleToNearPlane(triangle, clipped, near_depth);
 
     CHECK(count == 3);
+    unsigned int intersections_on_plane = 0;
     for(unsigned int i = 0; i < count; ++i)
-        CHECK(clipped[i].z == near_depth);
+    {
+        CHECK(clipped[i].z >= near_depth);
+        if(clipped[i].z == near_depth)
+            ++intersections_on_plane;
+    }
+    CHECK(intersections_on_plane == 2);
 }
 
 TEST_CASE("near-plane clipping rejects fully hidden triangles and preserves visible ones")
