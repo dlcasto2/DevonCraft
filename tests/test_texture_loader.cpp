@@ -80,6 +80,24 @@ TEST_CASE("binary PPM preserves whitespace-valued first pixel bytes")
     unlink(path);
 }
 
+TEST_CASE("binary PPM lone-CR separator preserves an LF first pixel byte")
+{
+    const char *path = "/tmp/devoncraft-lone-cr-pixel.ppm";
+    // The CR is the single header separator; the following LF is raster data.
+    const uint8_t pixels[] = { 0x0A, 0x20, 0x0D, 0x55, 0x66, 0x77 };
+
+    writeFile(path, "P6\n2 1\n255\r", pixels, sizeof(pixels));
+    TEXTURE *loaded = loadTextureFromFile(path);
+
+    REQUIRE(loaded != nullptr);
+    REQUIRE(loaded->width == 2);
+    REQUIRE(loaded->height == 1);
+    CHECK(loaded->bitmap[0] == 0x0901);
+    CHECK(loaded->bitmap[1] == 0x532E);
+    deleteTexture(loaded);
+    unlink(path);
+}
+
 TEST_CASE("blank atlas cells are rejected")
 {
     TEXTURE *texture = newTexture(32, 32, 0, true, 0);
