@@ -917,6 +917,33 @@ void WorldTask::tickSurvival(const AABB &box, const PlayerMotion &motion, bool h
     if(player_hurt_ticks > 0)
         --player_hurt_ticks;
 
+    // Resolve landing damage before contact hazards. Otherwise touching lava
+    // or cactus on the same tick could start the hurt cooldown and suppress
+    // the fall damage permanently.
+    if(motion.swimming)
+        fall_tracking = false;
+    else
+    {
+        if(was_on_ground && !motion.on_ground)
+        {
+            fall_tracking = true;
+            fall_peak_y = previous_y;
+        }
+        if(fall_tracking && !motion.on_ground && y > fall_peak_y)
+            fall_peak_y = y;
+        if(fall_tracking && motion.on_ground)
+        {
+            const int fall_blocks = ((fall_peak_y - y) / BLOCK_SIZE).floor();
+            if(fall_blocks > 3)
+                hurtPlayer(fall_blocks - 3);
+            fall_tracking = false;
+        }
+    }
+
+    // A fatal fall starts the death pause before any other hazard can run.
+    if(death_ticks > 0)
+        return;
+
     const bool touching_lava = world_collision.touchesBlock(box, BLOCK_LAVA);
     const bool touching_cactus = world_collision.touchesBlock(box, BLOCK_CACTUS);
 
@@ -970,28 +997,6 @@ void WorldTask::tickSurvival(const AABB &box, const PlayerMotion &motion, bool h
     }
     else
         cactus_damage_ticks = 0;
-
-    // Remember the highest point reached during a fall. A fall of three blocks
-    // is safe; each additional block removes one health point (half a heart).
-    if(motion.swimming)
-        fall_tracking = false;
-    else
-    {
-        if(was_on_ground && !motion.on_ground)
-        {
-            fall_tracking = true;
-            fall_peak_y = previous_y;
-        }
-        if(fall_tracking && !motion.on_ground && y > fall_peak_y)
-            fall_peak_y = y;
-        if(fall_tracking && motion.on_ground)
-        {
-            const int fall_blocks = ((fall_peak_y - y) / BLOCK_SIZE).floor();
-            if(fall_blocks > 3)
-                hurtPlayer(fall_blocks - 3);
-            fall_tracking = false;
-        }
-    }
 
     // A fatal environmental hit starts the death pause immediately.
     if(death_ticks > 0)
