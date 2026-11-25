@@ -177,6 +177,51 @@ void cow(const Entity &mob)
     cuboid(mob, 0, b(49), -b(41), b(6), b(6), b(5), {4,4,4,4,4,4});
 }
 
+
+void sheep(const Entity &mob)
+{
+    const FaceSet fleece = {7, 7, 7, 7, 7, 7};
+    const FaceSet body = {15, 15, 15, 15, 15, 15};
+    const FaceSet face = {5, 5, 5, 5, 5, 5};
+    const FaceSet leg = {15, 15, 15, 15, 15, 15};
+    const FaceSet hoof = {4, 4, 4, 4, 4, 4};
+    const FaceSet eye = {8, 8, 8, 8, 8, 8};
+
+    if(!mob.sheared)
+    {
+        // Thick, blocky fleece over the back and flanks.
+        cuboid(mob, 0, b(47), -b(2), b(70), b(48), b(66), fleece);
+        cuboid(mob, -b(22), b(51), -b(4), b(27), b(34), b(33), fleece);
+        cuboid(mob,  b(22), b(51), -b(4), b(27), b(34), b(33), fleece);
+        cuboid(mob, 0, b(67), -b(2), b(51), b(25), b(49), fleece);
+        cuboid(mob, 0, b(64), b(24), b(43), b(30), b(33), fleece);
+    }
+    else
+    {
+        // The close-cropped body remains visible after the fleece is removed.
+        cuboid(mob, 0, b(45), -b(2), b(51), b(33), b(57), body);
+        cuboid(mob, 0, b(58), b(20), b(32), b(26), b(29), body);
+    }
+
+    // Narrow face, ears and dark eyes; the face stays exposed when wool grows.
+    cuboid(mob, 0, b(62), b(28), b(28), b(30), b(31), face);
+    cuboid(mob, -b(18), b(68), b(23), b(12), b(8), b(15), body);
+    cuboid(mob,  b(18), b(68), b(23), b(12), b(8), b(15), body);
+    cuboid(mob, -b(9), b(66), b(43), b(4), b(5), b(3), eye);
+    cuboid(mob,  b(9), b(66), b(43), b(4), b(5), b(3), eye);
+    cuboid(mob, 0, b(54), b(45), b(10), b(8), b(5), {4,4,4,4,4,4});
+
+    // Four short legs and dark hooves.
+    const int sx[2] = {-1, 1}, sz[2] = {-1, 1};
+    for(int ix=0; ix<2; ++ix)
+        for(int iz=0; iz<2; ++iz)
+        {
+            const GLFix lx = GLFix(sx[ix]) * b(21), lz = GLFix(sz[iz]) * b(20);
+            cuboid(mob, lx, b(15), lz, b(13), b(25), b(13), leg);
+            cuboid(mob, lx, b(3), lz, b(14), b(6), b(14), hoof);
+        }
+}
+
 void trader(const Entity &mob)
 {
     const FaceSet robe = {0, 0, 2, 1, 1, 2};
@@ -244,6 +289,8 @@ void renderMob(const Entity &mob)
         glBindTexture(&animalTexture());
         if(mob.mob_kind == MOB_COW)
             cow(mob);
+        else if(mob.mob_kind == MOB_SHEEP)
+            sheep(mob);
         else
             pig(mob);
     }
