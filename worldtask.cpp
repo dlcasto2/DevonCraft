@@ -854,7 +854,8 @@ void WorldTask::respawnPlayer()
        && getBLOCK(world.getBlock(player_state.spawn_x, player_state.spawn_y, player_state.spawn_z)) == BLOCK_BED)
     {
         x = GLFix(player_state.spawn_x * BLOCK_SIZE + BLOCK_SIZE / 2);
-        y = GLFix((player_state.spawn_y + 1) * BLOCK_SIZE);
+        // Beds are only 9/16 of a block tall; place feet on the actual bed top.
+        y = GLFix(player_state.spawn_y * BLOCK_SIZE + BLOCK_SIZE * 9 / 16);
         z = GLFix(player_state.spawn_z * BLOCK_SIZE + BLOCK_SIZE / 2);
         world.setPosition(x, y, z);
         const AABB candidate{x - player_width/2, y, z - player_width/2,
@@ -925,7 +926,7 @@ void WorldTask::tickSurvival(const AABB &box, const PlayerMotion &motion, bool h
     else
         lava_damage_ticks = 0;
 
-    if(in_water)
+    if(motion.swimming)
         player_state.burning_ticks = 0;
     else if(player_state.burning_ticks > 0)
     {
