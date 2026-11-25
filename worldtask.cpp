@@ -26,6 +26,7 @@
 #include "gui_art.h"
 #include "particle.h"
 #include "texturetools.h"
+#include "usb_transfer_window.h"
 #include "water.h"
 #include "biome.h"
 
@@ -229,7 +230,7 @@ void WorldTask::logic()
     do_test = !do_test;
 
     if(key_held_down)
-        key_held_down = keyPressed(KEY_NSPIRE_ESC) || keyPressed(KEY_NSPIRE_7) || keyPressed(KEY_NSPIRE_9) || keyPressed(KEY_NSPIRE_1) || keyPressed(KEY_NSPIRE_3) || keyPressed(KEY_NSPIRE_PERIOD) || keyPressed(KEY_NSPIRE_MINUS) || keyPressed(KEY_NSPIRE_PLUS) || keyPressed(KEY_NSPIRE_MENU);
+        key_held_down = keyPressed(KEY_NSPIRE_ESC) || keyPressed(KEY_NSPIRE_7) || keyPressed(KEY_NSPIRE_9) || keyPressed(KEY_NSPIRE_1) || keyPressed(KEY_NSPIRE_3) || keyPressed(KEY_NSPIRE_PERIOD) || keyPressed(KEY_NSPIRE_SHIFT) || keyPressed(KEY_NSPIRE_MINUS) || keyPressed(KEY_NSPIRE_PLUS) || keyPressed(KEY_NSPIRE_MENU);
 
     else if(keyPressed(KEY_NSPIRE_ESC)) //Save & Exit
     {
@@ -361,16 +362,47 @@ void WorldTask::logic()
     }
     else if(keyPressed(KEY_NSPIRE_PERIOD)) //Open list of blocks (or take screenshot with Ctrl + .)
     {
-        if(keyPressed(KEY_NSPIRE_CTRL))
+        if(keyPressed(KEY_NSPIRE_CTRL) && keyPressed(KEY_NSPIRE_SHIFT))
         {
-            //Find a filename that doesn't exist
-            char buf[45];
+            // Ctrl + Shift + Period saves the current game frame and temporarily
+            // restores OS IRQ handling so the normal USB file-transfer service
+            // (0x4060) can read that file without leaving DevonCraft.
+            if(usbTransferWindowActive())
+            {
+                disableUsbTransferWindow();
+                setMessage("USB transfer OFF.");
+            }
+            else
+            {
+                char buf[45];
+                unsigned int i;
+                for(i = 0; i <= 999; ++i)
+                {
+                    snprintf(buf, sizeof(buf), "/documents/ndless/screenshot_%d.ppm.tns", i);
+                    struct stat stat_buf;
+                    if(stat(buf, &stat_buf) != 0)
+                        break;
+                }
 
+                if(i > 999 || !saveTextureToFile(*screen, buf))
+                    setMessage("USB screenshot failed!");
+                else if(enableUsbTransferWindow())
+                {
+                    snprintf(message, sizeof(message), "USB transfer ON (%u)", i);
+                    message_timeout = 60;
+                }
+                else
+                    setMessage("USB transfer unavailable.");
+            }
+        }
+        else if(keyPressed(KEY_NSPIRE_CTRL))
+        {
+            // Preserve the original Ctrl + Period screenshot shortcut.
+            char buf[45];
             unsigned int i;
             for(i = 0; i <= 999; ++i)
             {
                 snprintf(buf, sizeof(buf), "/documents/ndless/screenshot_%d.ppm.tns", i);
-
                 struct stat stat_buf;
                 if(stat(buf, &stat_buf) != 0)
                     break;
@@ -380,7 +412,7 @@ void WorldTask::logic()
                 setMessage("Screenshot failed!");
             else
             {
-                snprintf(message, sizeof(message), "Screenshot taken (%d)!", i);
+                snprintf(message, sizeof(message), "Screenshot taken (%u)!", i);
                 message_timeout = 20;
             }
         }
