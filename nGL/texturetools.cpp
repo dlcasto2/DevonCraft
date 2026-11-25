@@ -508,9 +508,11 @@ void greyscaleTexture(TEXTURE &tex)
     while(pixels--)
     {
         const RGB rgb = rgbColor(*ptr16);
-        //Somehow only the lowest 5 bits are used
-        *ptr16 = (rgb.r.value + rgb.g.value + rgb.g.value + rgb.b.value) >> 5;
-        ptr16++;
+        // Keep the original weighted channel average, but pack it into all
+        // three RGB565 channels so monochrome output stays neutral gray.
+        GLFix gray;
+        gray.value = (rgb.r.value + 2 * rgb.g.value + rgb.b.value) / 4;
+        *ptr16++ = colorRGB(gray, gray, gray);
     }
 }
 
