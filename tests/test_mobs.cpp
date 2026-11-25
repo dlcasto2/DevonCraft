@@ -145,17 +145,17 @@ TEST_CASE("mob collision does not trigger terrain auto-jump") {
     GridWorld terrain;
     EntityPool pool;
     REQUIRE(spawnPassive(pool, MOB_PIG,
-        AABB{GLFix(64), GLFix(128), GLFix(150),
-             GLFix(160), GLFix(224), GLFix(246)}) != nullptr);
+        AABB{GLFix(64), GLFix(128), GLFix(120),
+             GLFix(160), GLFix(224), GLFix(216)}) != nullptr);
     const MobCollisionQuery collision(terrain, pool);
     const AABB player{GLFix(64 - 51), GLFix(128), GLFix(64 - 51),
                       GLFix(64 + 51), GLFix(128 + 230), GLFix(64 + 51)};
 
     CHECK(collision.intersects(AABB{player.low_x, player.low_y, player.low_z + GLFix(10),
-                                   player.high_x, player.high_y, player.high_z + GLFix(10)}));
-    CHECK_FALSE(shouldAutoJump(collision, player, GLFix(0), GLFix(10), true, false));
+                                   player.high_x, player.high_y, player.high_z + GLFix(20)}));
+    CHECK_FALSE(shouldAutoJump(collision, player, GLFix(0), GLFix(20), true, false));
 
     // Real block steps still trigger the normal auto-jump check.
-    terrain.solid.insert(std::make_tuple(0, 1, 0));
+    terrain.solid.insert(std::make_tuple(0, 1, 1));
     CHECK(shouldAutoJump(collision, player, GLFix(0), GLFix(10), true, false));
 }
