@@ -397,14 +397,84 @@ GLFix nglZBufferAt(const unsigned int x, const unsigned int y)
     return z_buffer[x + y * SCREEN_WIDTH];
 }
 
-//Doesn't interpolate colors even if enabled
-void nglDrawLine3D(const VERTEX *v1, const VERTEX *v2)
-{    
-    //TODO: Z-Clipping
 
+namespace {
+
+// Liang-Barsky clipping in projected screen space. Parameters are stored
+// as Q8 raw values so even almost-parallel off-screen edges cannot overflow
+// a GLFix division before they are rejected.
+bool clipLineParameter(GLFix p, GLFix q, int64_t &t0, int64_t &t1)
+{
+    if(p.value == 0)
+        return q >= GLFix(0);
+
+    const int64_t r = (static_cast<int64_t>(q.value) * GLFix::scaleFactor()) / p.value;
+    if(p.value < 0)
+    {
+        if(r > t1)
+            return false;
+        if(r > t0)
+            t0 = r;
+    }
+    else
+    {
+        if(r < t0)
+            return false;
+        if(r < t1)
+            t1 = r;
+    }
+    return true;
+}
+
+VERTEX interpolateProjectedLine(const VERTEX &from, const VERTEX &to, int64_t t_raw)
+{
+    GLFix t;
+    t.value = static_cast<int32_t>(t_raw);
+    VERTEX result = from;
+    result.x = from.x + (to.x - from.x) * t;
+    result.y = from.y + (to.y - from.y) * t;
+    result.z = from.z + (to.z - from.z) * t;
+    return result;
+}
+
+bool clipLineToViewport(VERTEX &a, VERTEX &b)
+{
+    const GLFix dx = b.x - a.x;
+    const GLFix dy = b.y - a.y;
+    int64_t t0 = 0;
+    int64_t t1 = GLFix::scaleFactor();
+
+    if(!clipLineParameter(-dx, a.x, t0, t1)
+       || !clipLineParameter(dx, GLFix(SCREEN_WIDTH - 1) - a.x, t0, t1)
+       || !clipLineParameter(-dy, a.y, t0, t1)
+       || !clipLineParameter(dy, GLFix(SCREEN_HEIGHT - 1) - a.y, t0, t1))
+        return false;
+
+    const VERTEX original_a = a;
+    const VERTEX original_b = b;
+    if(t1 < GLFix::scaleFactor())
+        b = interpolateProjectedLine(original_a, original_b, t1);
+    if(t0 > 0)
+        a = interpolateProjectedLine(original_a, original_b, t0);
+    return true;
+}
+
+} // namespace
+
+// Doesn't interpolate colors even if enabled.
+void nglDrawLine3D(const VERTEX *v1, const VERTEX *v2)
+{
     VERTEX v1_p = *v1, v2_p = *v2;
+    if(!nglClipLineToNearPlane(v1_p, v2_p, nglGetNearPlane()))
+        return;
+
     nglPerspective(&v1_p);
     nglPerspective(&v2_p);
+
+    // Keep the raster loops bounded even when a near-plane intersection
+    // projects to a very distant screen coordinate.
+    if(!clipLineToViewport(v1_p, v2_p))
+        return;
 
     const GLFix diff_x = v2_p.x - v1_p.x;
     const COLOR c = v1_p.c;
