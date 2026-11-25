@@ -168,11 +168,11 @@ TEST_CASE("damaging a mob lowers its health and briefly marks it as hurt") {
     CHECK(pig->health == 10);
     CHECK_FALSE(hurtMob(*pig, MOB_HIT_DAMAGE));
     CHECK(pig->health == 8);
-    CHECK(pig->invulnerable_ticks == MOB_HURT_FLASH_TICKS);
+    CHECK(pig->hurt_ticks == MOB_HURT_FLASH_TICKS);
 
     GridWorld world;
     pool.tick(world);
-    CHECK(pig->invulnerable_ticks == MOB_HURT_FLASH_TICKS - 1);
+    CHECK(pig->hurt_ticks == MOB_HURT_FLASH_TICKS - 1);
 }
 
 TEST_CASE("lethal mob damage clamps health to zero and leaves traders immune") {
@@ -198,5 +198,5 @@ TEST_CASE("invalid damage does not hurt mobs") {
     CHECK_FALSE(hurtMob(*cow, 0));
     CHECK_FALSE(hurtMob(*cow, -5));
     CHECK(cow->health == mobMaxHealth(MOB_COW));
-    CHECK(cow->invulnerable_ticks == 0);
+    CHECK(cow->hurt_ticks == 0);
 }
