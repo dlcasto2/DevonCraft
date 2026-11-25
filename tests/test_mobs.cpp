@@ -151,7 +151,7 @@ TEST_CASE("mob collision does not trigger terrain auto-jump") {
     const AABB player{GLFix(64 - 51), GLFix(128), GLFix(64 - 51),
                       GLFix(64 + 51), GLFix(128 + 230), GLFix(64 + 51)};
 
-    CHECK(collision.intersects(AABB{player.low_x, player.low_y, player.low_z + GLFix(10),
+    CHECK(collision.intersects(AABB{player.low_x, player.low_y, player.low_z + GLFix(20),
                                    player.high_x, player.high_y, player.high_z + GLFix(20)}));
     CHECK_FALSE(shouldAutoJump(collision, player, GLFix(0), GLFix(20), true, false));
 
