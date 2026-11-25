@@ -11,6 +11,7 @@
 #include "lighting.h"
 #include "blockdefs.h"
 #include "gamestate.h"
+#include "survival.h"
 #include "progression.h"
 #include "furnace.h"
 #include "furnacescreen.h"
@@ -90,6 +91,10 @@ GLFix WorldTask::speed()
 
 void WorldTask::logic()
 {
+    // Lock controls during the short death/respawn pause.
+    if(death_ticks > 0)
+        return;
+
     // Record this frame's movement intent; tick() applies physics.
     input_forward = keyPressed(KEY_NSPIRE_8) ? 1 : (keyPressed(KEY_NSPIRE_2) ? -1 : 0);
     input_strafe = keyPressed(KEY_NSPIRE_6) ? 1 : (keyPressed(KEY_NSPIRE_4) ? -1 : 0);
@@ -241,6 +246,10 @@ void WorldTask::logic()
     else if(keyPressed(KEY_NSPIRE_7)) //Put block down
     {
         key_held_down = true;
+
+        // Food uses the same action key as block placement.
+        if(eatHeldFood())
+            return;
 
         if(aim_mob && aim_mob->type == EntityType::MOB && aim_mob->mob_kind == MOB_TRADER)
         {
@@ -455,6 +464,13 @@ void WorldTask::logic()
 
 void WorldTask::tick()
 {
+    if(death_ticks > 0)
+    {
+        if(--death_ticks == 0)
+            respawnPlayer();
+        return;
+    }
+
     if(jump_tap_ticks > 0)
         --jump_tap_ticks;
     sprint_input_state.tick();
@@ -466,10 +482,9 @@ void WorldTask::tick()
     motion.vy = vy;
     motion.on_ground = can_jump;
 
-    // Eyes underwater: air runs down, mining is slower and the view turns blue.
-    const bool head_in_water = getBLOCK(world.getBlock((x / BLOCK_SIZE).floor(), ((y + eye_pos) / BLOCK_SIZE).floor(), (z / BLOCK_SIZE).floor())) == BLOCK_WATER;
-    in_water = head_in_water;
-    player_state.air_ticks = nextAirTicks(player_state.air_ticks, head_in_water, player_state.mode == GameMode::SURVIVAL);
+    // Keep the previous position for sprint exhaustion and fall-distance tracking.
+    const GLFix previous_x = x, previous_y = y, previous_z = z;
+    const bool was_on_ground = can_jump;
 
     const GLFix walk = velocityPerTick(speed(), V13_FPS);
     const bool auto_jump = settings_task.getValue(SettingsTask::AUTO_JUMP) != 0;
@@ -491,7 +506,17 @@ void WorldTask::tick()
     vy = motion.vy;
     can_jump = motion.on_ground;
 
+    // Air is consumed by the player's current head position after movement.
+    const bool head_in_water = getBLOCK(world.getBlock((x / BLOCK_SIZE).floor(),
+        ((y + eye_pos) / BLOCK_SIZE).floor(), (z / BLOCK_SIZE).floor())) == BLOCK_WATER;
+    in_water = head_in_water;
+    player_state.air_ticks = nextAirTicks(player_state.air_ticks, head_in_water,
+                                          player_state.mode == GameMode::SURVIVAL);
+
     world.setPosition(x, y, z);
+    tickSurvival(box, motion, head_in_water, previous_x, previous_y, previous_z, was_on_ground);
+    if(death_ticks > 0)
+        return;
 
     tickMobs();
     entity_pool.tick(world_collision);
@@ -748,6 +773,267 @@ void WorldTask::removeBlock(int bx, int by, int bz, BLOCK_WDATA target)
     }
 }
 
+bool WorldTask::eatHeldFood()
+{
+    ItemStack &held = player_inventory.selectedStack();
+    if(player_state.mode != GameMode::SURVIVAL || held.empty() || !isFoodItem(held.id))
+        return false;
+
+    if(!eatFood(player_state, held))
+        setMessage("You are not hungry.");
+    else
+        setMessage("Ate food.");
+    return true;
+}
+
+void WorldTask::hurtPlayer(int damage)
+{
+    if(player_state.mode != GameMode::SURVIVAL || death_ticks > 0 || player_hurt_ticks > 0)
+        return;
+
+    if(damagePlayer(player_state, damage) > 0)
+    {
+        player_hurt_ticks = 10;
+        if(player_state.health == 0)
+            beginPlayerDeath();
+    }
+}
+
+void WorldTask::beginPlayerDeath()
+{
+    if(death_ticks > 0)
+        return;
+
+    bool has_items = false;
+    ItemPile pile{};
+    pile.x = x;
+    pile.y = y + BLOCK_SIZE / 2;
+    pile.z = z;
+    pile.age_ticks = 0;
+    for(int i = 0; i < PlayerInventory::SLOTS; ++i)
+    {
+        pile.stacks[i] = player_inventory.slots[i];
+        has_items = has_items || !pile.stacks[i].empty();
+    }
+
+    // Only clear the inventory after the complete death pile has an entity and
+    // a persistent store slot. If either is full, keep the items rather than
+    // risking losing them.
+    if(has_items)
+    {
+        const int index = item_piles.add(pile);
+        if(index >= 0)
+        {
+            constexpr int PILE_HALF = 24;
+            const AABB pile_box(pile.x - PILE_HALF, pile.y - PILE_HALF, pile.z - PILE_HALF,
+                                pile.x + PILE_HALF, pile.y + PILE_HALF, pile.z + PILE_HALF);
+            if(Entity *entity = entity_pool.spawn(EntityType::ITEM_PILE, pile_box))
+            {
+                entity->pile_index = static_cast<uint8_t>(index);
+                entity->vy = 6;
+                player_inventory.clear();
+            }
+            else
+                item_piles.remove(index);
+        }
+    }
+
+    death_ticks = 40;
+    mining = MiningState();
+    vy = 0;
+    input_forward = input_strafe = 0;
+    input_jump = input_sprint = input_descend = input_mine = false;
+    aim_mob = nullptr;
+    setMessage("You died. Respawning...");
+}
+
+void WorldTask::respawnPlayer()
+{
+    bool bed_spawn_valid = false;
+    if(player_state.spawn_is_bed
+       && getBLOCK(world.getBlock(player_state.spawn_x, player_state.spawn_y, player_state.spawn_z)) == BLOCK_BED)
+    {
+        x = GLFix(player_state.spawn_x * BLOCK_SIZE + BLOCK_SIZE / 2);
+        y = GLFix((player_state.spawn_y + 1) * BLOCK_SIZE);
+        z = GLFix(player_state.spawn_z * BLOCK_SIZE + BLOCK_SIZE / 2);
+        world.setPosition(x, y, z);
+        const AABB candidate{x - player_width/2, y, z - player_width/2,
+                             x + player_width/2, y + player_height, z + player_width/2};
+        bed_spawn_valid = !world_collision.intersects(candidate);
+    }
+
+    if(!bed_spawn_valid)
+    {
+        x = 0;
+        y = World::HEIGHT * Chunk::SIZE * BLOCK_SIZE;
+        z = 0;
+        player_state.spawn_x = 0;
+        player_state.spawn_y = World::HEIGHT * Chunk::SIZE;
+        player_state.spawn_z = 0;
+        player_state.spawn_is_bed = false;
+        world.setPosition(x, y, z);
+    }
+
+    xr = yr = 0;
+    vy = 0;
+    can_jump = false;
+    in_water = false;
+    creative_flight = false;
+    fall_tracking = false;
+    player_state.health = PLAYER_MAX_HEALTH;
+    player_state.air_ticks = MAX_AIR_TICKS;
+    player_state.burning_ticks = 0;
+    player_hurt_ticks = 0;
+    drowning_damage_ticks = lava_damage_ticks = cactus_damage_ticks = 0;
+    regeneration_ticks = starvation_ticks = peaceful_refill_ticks = 0;
+    death_ticks = 0;
+    key_held_down = false;
+    setMessage("Respawned.");
+}
+
+void WorldTask::tickSurvival(const AABB &box, const PlayerMotion &motion, bool head_underwater,
+                             GLFix previous_x, GLFix previous_y, GLFix previous_z, bool was_on_ground)
+{
+    if(player_state.mode != GameMode::SURVIVAL)
+    {
+        fall_tracking = false;
+        player_state.burning_ticks = 0;
+        drowning_damage_ticks = lava_damage_ticks = cactus_damage_ticks = 0;
+        regeneration_ticks = starvation_ticks = peaceful_refill_ticks = 0;
+        player_hurt_ticks = 0;
+        return;
+    }
+
+    if(player_hurt_ticks > 0)
+        --player_hurt_ticks;
+
+    const bool touching_lava = world_collision.touchesBlock(box, BLOCK_LAVA);
+    const bool touching_cactus = world_collision.touchesBlock(box, BLOCK_CACTUS);
+
+    // Lava causes immediate damage and leaves the player burning briefly.
+    if(touching_lava)
+    {
+        player_state.burning_ticks = 100;
+        if(lava_damage_ticks == 0)
+        {
+            hurtPlayer(4);
+            lava_damage_ticks = 10;
+        }
+        else
+            --lava_damage_ticks;
+    }
+    else
+        lava_damage_ticks = 0;
+
+    if(in_water)
+        player_state.burning_ticks = 0;
+    else if(player_state.burning_ticks > 0)
+    {
+        --player_state.burning_ticks;
+        if(player_state.burning_ticks % 20 == 0)
+            hurtPlayer(1);
+    }
+
+    // Air is 300 ticks (15 seconds); once depleted, drowning deals one heart
+    // every second until the head leaves the water.
+    if(head_underwater && player_state.air_ticks == 0)
+    {
+        if(++drowning_damage_ticks >= 20)
+        {
+            drowning_damage_ticks = 0;
+            hurtPlayer(2);
+        }
+    }
+    else
+        drowning_damage_ticks = 0;
+
+    // Cactus contact deals half a heart once per second.
+    if(touching_cactus)
+    {
+        if(cactus_damage_ticks == 0)
+        {
+            hurtPlayer(1);
+            cactus_damage_ticks = 20;
+        }
+        else
+            --cactus_damage_ticks;
+    }
+    else
+        cactus_damage_ticks = 0;
+
+    // Remember the highest point reached during a fall. A fall of three blocks
+    // is safe; each additional block removes one health point (half a heart).
+    if(motion.swimming)
+        fall_tracking = false;
+    else
+    {
+        if(was_on_ground && !motion.on_ground)
+        {
+            fall_tracking = true;
+            fall_peak_y = previous_y;
+        }
+        if(fall_tracking && !motion.on_ground && y > fall_peak_y)
+            fall_peak_y = y;
+        if(fall_tracking && motion.on_ground)
+        {
+            const int fall_blocks = ((fall_peak_y - y) / BLOCK_SIZE).floor();
+            if(fall_blocks > 3)
+                hurtPlayer(fall_blocks - 3);
+            fall_tracking = false;
+        }
+    }
+
+    uint32_t exhaustion_delta = 0;
+    if(input_sprint && input_forward > 0 && !motion.swimming)
+    {
+        const GLFix dx = x >= previous_x ? x - previous_x : previous_x - x;
+        const GLFix dz = z >= previous_z ? z - previous_z : previous_z - z;
+        const int cost = (((dx + dz) * 100) / BLOCK_SIZE).toInteger<int>();
+        if(cost > 0)
+            exhaustion_delta += static_cast<uint32_t>(cost);
+    }
+    // Ordinary jumps cost a little; sprint-jumps are covered by the same rule.
+    if(was_on_ground && !motion.on_ground && !motion.swimming)
+        exhaustion_delta += 50;
+
+    const DifficultyRules &rules = difficultyRules(world_state.difficulty);
+    bool regeneration_pulse = false, starvation_pulse = false, peaceful_refill_pulse = false;
+    if(rules.auto_refill)
+    {
+        regeneration_ticks = starvation_ticks = 0;
+        peaceful_refill_pulse = ++peaceful_refill_ticks >= 10;
+        if(peaceful_refill_pulse)
+            peaceful_refill_ticks = 0;
+    }
+    else
+    {
+        peaceful_refill_ticks = 0;
+        if(player_state.health < PLAYER_MAX_HEALTH && player_state.hunger >= 18 && rules.regen_percent > 0)
+        {
+            const unsigned interval = (80u * 100u + rules.regen_percent - 1u) / rules.regen_percent;
+            regeneration_pulse = ++regeneration_ticks >= interval;
+            if(regeneration_pulse)
+                regeneration_ticks = 0;
+        }
+        else
+            regeneration_ticks = 0;
+
+        if(rules.can_starve && player_state.hunger == 0)
+        {
+            starvation_pulse = ++starvation_ticks >= 80;
+            if(starvation_pulse)
+                starvation_ticks = 0;
+        }
+        else
+            starvation_ticks = 0;
+    }
+
+    tickSurvivalNeeds(player_state, world_state.difficulty, exhaustion_delta,
+                      regeneration_pulse, starvation_pulse, peaceful_refill_pulse);
+    if(player_state.health == 0)
+        beginPlayerDeath();
+}
+
 void WorldTask::tickMobs()
 {
     // Mobs wander; any that have strayed far from the player go away.
@@ -964,6 +1250,7 @@ void WorldTask::tickMining(bool on_ground)
 
     spawnDrop(entity_pool, GLFix(bx * BLOCK_SIZE + BLOCK_SIZE / 2), GLFix(by * BLOCK_SIZE + BLOCK_SIZE / 2),
               GLFix(bz * BLOCK_SIZE + BLOCK_SIZE / 2), drop, player_inventory);
+    addExhaustion(player_state, world_state.difficulty, 50); // breaking a block costs 0.05 exhaustion
     wearTool(held, toolWearFor(tool, target));
     if(const char *notice = takeProgressNotice())
         setMessage(notice);
@@ -1148,6 +1435,18 @@ void WorldTask::resetWorld()
     world.generateSeed();
     world.clear();
     current_inventory.resetToDefaults();
+    player_inventory.clear();
+    player_state.health = PLAYER_MAX_HEALTH;
+    player_state.hunger = PLAYER_MAX_HUNGER;
+    player_state.saturation_x100 = 500;
+    player_state.exhaustion_x1000 = 0;
+    player_state.air_ticks = MAX_AIR_TICKS;
+    player_state.burning_ticks = 0;
+    player_state.spawn_x = 0;
+    player_state.spawn_y = World::HEIGHT * Chunk::SIZE;
+    player_state.spawn_z = 0;
+    player_state.spawn_is_bed = false;
+    world_state.time_of_day = 1000;
     resetProgress();
     // Nothing from the previous world carries over.
     block_storage.clear();
@@ -1159,6 +1458,11 @@ void WorldTask::resetWorld()
     mob_spawn_timer = 0;
     mob_hit_cooldown = 0;
     aim_mob = nullptr;
+    player_hurt_ticks = 0;
+    drowning_damage_ticks = lava_damage_ticks = cactus_damage_ticks = 0;
+    regeneration_ticks = starvation_ticks = peaceful_refill_ticks = 0;
+    death_ticks = 0;
+    fall_tracking = false;
     creative_flight = false;
     jump_key_was_down = false;
     jump_tap_ticks = 0;
