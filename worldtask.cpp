@@ -253,23 +253,28 @@ void WorldTask::logic()
             return;
         }
 
-        // Food uses the same action key as block placement.
+        // Let targeted blocks and containers handle use before food consumes
+        // the key. This preserves bed, chest, bucket and special-block actions.
+        if(selection_side != AABB::NONE)
+        {
+            if(useBlock(static_cast<int>(selection_pos.x), static_cast<int>(selection_pos.y), static_cast<int>(selection_pos.z)))
+                return;
+
+            if(useBucket())
+                return;
+
+            if(world.blockAction(selection_pos.x, selection_pos.y, selection_pos.z))
+                return;
+        }
+
+        // Food can be eaten in the open, or while aiming at ordinary terrain.
         if(eatHeldFood())
             return;
 
         if(selection_side == AABB::NONE)
             return;
 
-        if(useBlock(static_cast<int>(selection_pos.x), static_cast<int>(selection_pos.y), static_cast<int>(selection_pos.z)))
-            return;
-
-        if(useBucket())
-            return;
-
         if(world.intersect(aabb))
-            return;
-
-        if(world.blockAction(selection_pos.x, selection_pos.y, selection_pos.z))
             return;
 
         BLOCK_WDATA current_block,
@@ -986,6 +991,10 @@ void WorldTask::tickSurvival(const AABB &box, const PlayerMotion &motion, bool h
             fall_tracking = false;
         }
     }
+
+    // A fatal environmental hit starts the death pause immediately.
+    if(death_ticks > 0)
+        return;
 
     uint32_t exhaustion_delta = 0;
     const GLFix dx = x >= previous_x ? x - previous_x : previous_x - x;
