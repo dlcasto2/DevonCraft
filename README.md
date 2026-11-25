@@ -111,6 +111,10 @@ Controls
 | esc | Save and quit | Close |
 | + / - | View distance | |
 | ctrl + . | Screenshot | |
+| ctrl + shift + . | Save screenshot and toggle USB transfer mode while the game stays open | |
+
+
+During USB transfer mode, DevonCraft keeps running with the operating system's USB file-transfer interrupts enabled. Use the DevonCraft USB Bridge (or a compatible TI-Nspire file manager) to receive the newest `/documents/ndless/screenshot_N.ppm.tns` file; do not use live-screen capture. Press **ctrl + shift + .** again to restore the game's normal interrupt-masked mode. The original **ctrl + .** screenshot shortcut remains unchanged.
 
 Limitations
 -----------
