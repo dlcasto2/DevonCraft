@@ -5,6 +5,7 @@
 #include <tuple>
 
 #include "physics.h"
+#include "player_motion.h"
 #include "terrain.h"
 
 // Test double: solid BLOCK_SIZE cubes at integer cells. Boxes that merely
@@ -29,10 +30,10 @@ struct GridWorld : CollisionQuery {
     bool touchesWater(const AABB &b) const override { return overlapsAny(water, b); }
 };
 
-// A 102-wide, 230-tall player box whose bottom centre sits at (x, y, z).
+// A 102-wide player box with the production collision height, bottom-centred at (x, y, z).
 inline AABB playerBoxAt(int x, int y, int z)
 {
-    return AABB(GLFix(x - 51), GLFix(y), GLFix(z - 51), GLFix(x + 51), GLFix(y + 230), GLFix(z + 51));
+    return AABB(GLFix(x - 51), GLFix(y), GLFix(z - 51), GLFix(x + 51), GLFix(y + PLAYER_COLLISION_HEIGHT), GLFix(z + 51));
 }
 
 #endif // GRID_WORLD_H
