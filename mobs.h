@@ -54,6 +54,7 @@ public:
         : terrain_(terrain), entities_(entities) {}
 
     bool intersects(const AABB &box) const override;
+    bool intersectsForAutoJump(const AABB &box) const override;
     bool touchesWater(const AABB &box) const override;
 
 private:
