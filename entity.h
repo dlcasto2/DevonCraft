@@ -23,6 +23,9 @@ struct Entity {
     // Passive mobs: duration of the current walk/rest and heading (4 = standing).
     uint16_t mob_timer = 0;
     uint8_t mob_heading = 4;
+    // Sheep: wool is removed by shearing and regrows after grazing.
+    bool sheared = false;
+    uint16_t wool_regrow_ticks = 0;
     // Per-offer stock for a wandering trader; unused by other entities.
     uint8_t trade_uses[4] = {};
 };
