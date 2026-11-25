@@ -5,6 +5,7 @@
 #include "player_motion.h"
 #include "entity.h"
 #include "mobs.h"
+#include "mob_renderer.h"
 #include "trader.h"
 #include "stresstest.h"
 #include "platform_time.h"
@@ -480,8 +481,15 @@ void WorldTask::tick()
         --jump_tap_ticks;
     sprint_input_state.tick();
 
-    // Build the physics box from the current position, run one tick, read it back.
+    // Build the physics box and clear any overlap caused by a mob moving into
+    // the player on the previous entity tick. The same mob hitboxes then take
+    // part in every axis of player movement and creative flight.
     AABB box{x - player_width/2, y, z - player_width/2, x + player_width/2, y + player_height, z + player_width/2};
+    separatePlayerFromMobs(box, entity_pool, world_collision);
+    x = (box.low_x + box.high_x) / 2;
+    y = box.low_y;
+    z = (box.low_z + box.high_z) / 2;
+    const MobCollisionQuery player_collision(world_collision, entity_pool);
 
     PlayerMotion motion;
     motion.vy = vy;
@@ -498,7 +506,7 @@ void WorldTask::tick()
 
     if(creative_flight && player_state.mode == GameMode::CREATIVE)
     {
-        playerFlyTick(world_collision, box, input_forward, input_strafe,
+        playerFlyTick(player_collision, box, input_forward, input_strafe,
                       input_jump, input_descend, yr, walk);
         motion.vy = 0;
         motion.on_ground = false;
@@ -506,7 +514,7 @@ void WorldTask::tick()
         motion.boost_x = motion.boost_z = 0;   // flying carries no sprint momentum
     }
     else
-        playerTick(world_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump, input_sprint}, yr, walk, auto_jump);
+        playerTick(player_collision, box, motion, PlayerInput{input_forward, input_strafe, input_jump, input_sprint}, yr, walk, auto_jump);
 
     sprint_boost_x = motion.boost_x;
     sprint_boost_z = motion.boost_z;
@@ -1324,6 +1332,10 @@ void WorldTask::render()
     world.render();
 
     renderEntities(entity_pool);
+
+    // Show the exact mob hitbox only while the crosshair is over that mob.
+    if(aim_mob && aim_mob->type == EntityType::MOB)
+        renderMobHitbox(*aim_mob);
 
     //Draw indication
     glBindTexture(&blockselection);
