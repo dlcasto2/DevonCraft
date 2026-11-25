@@ -157,6 +157,11 @@ bool MobCollisionQuery::intersects(const AABB &box) const
     return blocked;
 }
 
+bool MobCollisionQuery::intersectsForAutoJump(const AABB &box) const
+{
+    return terrain_.intersects(box);
+}
+
 bool MobCollisionQuery::touchesWater(const AABB &box) const
 {
     return terrain_.touchesWater(box);
