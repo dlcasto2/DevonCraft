@@ -45,4 +45,24 @@ void steerMob(Entity &e, uint32_t &rng);
 // Pigs and cows only spawn on grass, in daylight (daylightFactor is 0-256).
 bool canSpawnPassive(bool on_grass, int daylight);
 
+// Adds every mob's existing bounding box to player collision while delegating
+// block collision and water detection to the normal world query.
+class MobCollisionQuery : public CollisionQuery
+{
+public:
+    MobCollisionQuery(const CollisionQuery &terrain, const EntityPool &entities)
+        : terrain_(terrain), entities_(entities) {}
+
+    bool intersects(const AABB &box) const override;
+    bool touchesWater(const AABB &box) const override;
+
+private:
+    const CollisionQuery &terrain_;
+    const EntityPool &entities_;
+};
+
+// If a mob walks into the player between movement ticks, move the player just
+// outside the overlapping hitbox before applying the next movement input.
+bool separatePlayerFromMobs(AABB &player, const EntityPool &entities, const CollisionQuery &terrain);
+
 #endif // MOBS_H
