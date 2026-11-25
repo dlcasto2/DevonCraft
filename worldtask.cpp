@@ -137,8 +137,10 @@ void WorldTask::logic()
     input_descend = creative_flight && player_state.mode == GameMode::CREATIVE
                  && keyPressed(KEY_NSPIRE_0);
 
-    // Survival mines while 9 is held; tick() does the work.
-    input_mine = player_state.mode == GameMode::SURVIVAL && keyPressed(KEY_NSPIRE_9);
+    // Key 9 attacks an aimed animal in either mode. In Survival it also
+    // mines blocks when no mob is targeted.
+    input_attack = keyPressed(KEY_NSPIRE_9);
+    input_mine = player_state.mode == GameMode::SURVIVAL && input_attack;
 
     if(has_touchpad)
     {
@@ -355,13 +357,22 @@ void WorldTask::logic()
             }
         }
     }
-    else if(keyPressed(KEY_NSPIRE_9) && player_state.mode != GameMode::SURVIVAL) //Remove block (creative: instantly)
+    else if(keyPressed(KEY_NSPIRE_9) && player_state.mode != GameMode::SURVIVAL)
     {
-        const BLOCK_WDATA target = selection_side == AABB::NONE ? BLOCK_AIR : world.getBlock(selection_pos.x, selection_pos.y, selection_pos.z);
-        if(selection_side != AABB::NONE && target != BLOCK_BEDROCK)
-            removeBlock(static_cast<int>(selection_pos.x), static_cast<int>(selection_pos.y), static_cast<int>(selection_pos.z), target);
+        // When a mob is under the crosshair, key 9 attacks it instead of
+        // instantly breaking the block behind it. Traders remain peaceful.
+        if(aim_mob && aim_mob->type == EntityType::MOB)
+        {
+            key_held_down = true; // tickMobs() applies the hit and cooldown.
+        }
+        else
+        {
+            const BLOCK_WDATA target = selection_side == AABB::NONE ? BLOCK_AIR : world.getBlock(selection_pos.x, selection_pos.y, selection_pos.z);
+            if(selection_side != AABB::NONE && target != BLOCK_BEDROCK)
+                removeBlock(static_cast<int>(selection_pos.x), static_cast<int>(selection_pos.y), static_cast<int>(selection_pos.z), target);
 
-        key_held_down = true;
+            key_held_down = true;
+        }
     }
     else if(keyPressed(KEY_NSPIRE_1)) //Switch inventory slot
     {
@@ -872,7 +883,7 @@ void WorldTask::beginPlayerDeath()
     mining = MiningState();
     vy = 0;
     input_forward = input_strafe = 0;
-    input_jump = input_sprint = input_descend = input_mine = false;
+    input_jump = input_sprint = input_descend = input_mine = input_attack = false;
     aim_mob = nullptr;
     setMessage("You died. Respawning...");
 }
@@ -1122,16 +1133,14 @@ void WorldTask::tickMobs()
     if(mob_hit_cooldown > 0)
         --mob_hit_cooldown;
 
-    // Survival: animals can be hit, but the wandering trader stays peaceful.
-    if(input_mine && aim_mob && aim_mob->type == EntityType::MOB)
+    // Aimed mobs consume the attack input so a block behind them is never
+    // mined or broken. This works in Creative and Survival; traders stay peaceful.
+    if(input_attack && aim_mob && aim_mob->type == EntityType::MOB)
     {
-        if(aim_mob->mob_kind == MOB_TRADER)
-            input_mine = false;
-        else if(mob_hit_cooldown == 0)
-        {
+        input_attack = false;
+        input_mine = false;
+        if(aim_mob->mob_kind != MOB_TRADER && mob_hit_cooldown == 0)
             hitMob(*aim_mob);
-            input_mine = false;
-        }
     }
 }
 
