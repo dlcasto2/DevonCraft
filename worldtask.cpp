@@ -243,19 +243,19 @@ void WorldTask::logic()
         Task::running = false;
         return;
     }
-    else if(keyPressed(KEY_NSPIRE_7)) //Put block down
+    else if(keyPressed(KEY_NSPIRE_7)) //Use held item or put block down
     {
         key_held_down = true;
-
-        // Food uses the same action key as block placement.
-        if(eatHeldFood())
-            return;
 
         if(aim_mob && aim_mob->type == EntityType::MOB && aim_mob->mob_kind == MOB_TRADER)
         {
             trader_screen.open(*aim_mob);
             return;
         }
+
+        // Food uses the same action key as block placement.
+        if(eatHeldFood())
+            return;
 
         if(selection_side == AABB::NONE)
             return;
@@ -882,6 +882,9 @@ void WorldTask::respawnPlayer()
     creative_flight = false;
     fall_tracking = false;
     player_state.health = PLAYER_MAX_HEALTH;
+    player_state.hunger = PLAYER_MAX_HUNGER;
+    player_state.saturation_x100 = 500;
+    player_state.exhaustion_x1000 = 0;
     player_state.air_ticks = MAX_AIR_TICKS;
     player_state.burning_ticks = 0;
     player_hurt_ticks = 0;
@@ -985,15 +988,15 @@ void WorldTask::tickSurvival(const AABB &box, const PlayerMotion &motion, bool h
     }
 
     uint32_t exhaustion_delta = 0;
-    if(input_sprint && input_forward > 0 && !motion.swimming)
-    {
-        const GLFix dx = x >= previous_x ? x - previous_x : previous_x - x;
-        const GLFix dz = z >= previous_z ? z - previous_z : previous_z - z;
-        const int cost = (((dx + dz) * 100) / BLOCK_SIZE).toInteger<int>();
-        if(cost > 0)
-            exhaustion_delta += static_cast<uint32_t>(cost);
-    }
-    // Ordinary jumps cost a little; sprint-jumps are covered by the same rule.
+    const GLFix dx = x >= previous_x ? x - previous_x : previous_x - x;
+    const GLFix dz = z >= previous_z ? z - previous_z : previous_z - z;
+    const unsigned movement_cost_per_block = motion.swimming ? 15u
+        : (input_sprint && input_forward > 0 ? 100u : 10u);
+    const int movement_cost = (((dx + dz) * movement_cost_per_block) / BLOCK_SIZE).toInteger<int>();
+    if(movement_cost > 0)
+        exhaustion_delta += static_cast<uint32_t>(movement_cost);
+
+    // Jumping costs 0.05 exhaustion; sprinting while jumping pays both costs.
     if(was_on_ground && !motion.on_ground && !motion.swimming)
         exhaustion_delta += 50;
 
