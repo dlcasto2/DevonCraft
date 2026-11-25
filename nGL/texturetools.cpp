@@ -97,19 +97,12 @@ static bool skip_space(FILE *file)
 // consuming them would shift every RGB triplet in the loaded atlas.
 static bool consumePpmRasterSeparator(FILE *file)
 {
+    // P6 has exactly one whitespace separator after maxval. Consume exactly
+    // that byte: a CRLF sequence is not special here because the following LF
+    // may be the first byte of the binary raster.
     const int separator = getc(file);
-    if(separator == '\r')
-    {
-        // Treat a CRLF header line ending as one separator, without consuming
-        // a following image byte when the file uses a lone CR.
-        const int next = getc(file);
-        if(next != '\n' && next != EOF)
-            ungetc(next, file);
-        return true;
-    }
-
     return separator == ' ' || separator == '\t' || separator == '\n'
-        || separator == '\v' || separator == '\f';
+        || separator == '\r' || separator == '\v' || separator == '\f';
 }
 
 //PAM-Loader
