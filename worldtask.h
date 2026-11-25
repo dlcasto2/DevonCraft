@@ -23,8 +23,9 @@ public:
 
     GLFix x, y = World::HEIGHT * Chunk::SIZE * BLOCK_SIZE, z, xr, yr;
 
-    // The player occupies two full blocks; eye level stays 0.2 blocks below the head.
-    static constexpr GLFix player_width = BLOCK_SIZE*0.8f, player_height = BLOCK_SIZE*2.0f, eye_pos = BLOCK_SIZE*1.8f;
+    // The 1.7-block collider leaves room for the initial jump step in a two-block tunnel.
+    // Eye height is kept inside the body at the usual 1.62-block level.
+    static constexpr GLFix player_width = BLOCK_SIZE*0.8f, player_height = PLAYER_COLLISION_HEIGHT, eye_pos = BLOCK_SIZE*1.62f;
 
     void setMessage(const char *message);
 
