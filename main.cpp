@@ -17,6 +17,7 @@
 
 #include "textures/loading.h"
 #include "worldloadertask.h"
+#include "usb_transfer_window.h"
 #include "bootui.h"
 
 int main(int argc, char *argv[])
@@ -187,6 +188,9 @@ int main(int argc, char *argv[])
         if(save_on_exit)
             Task::save();
     #endif
+
+    // Never leave OS USB interrupts enabled after DevonCraft exits.
+    disableUsbTransferWindow();
 
     platformTimeDeinit();
 
