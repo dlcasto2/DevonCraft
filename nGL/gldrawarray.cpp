@@ -29,99 +29,57 @@ static bool drawTriangle(ProcessedPosition *processed, const IndexedVertex &low,
 {
     ProcessedPosition &p_low = processed[low.index], &p_middle = processed[middle.index], &p_high = processed[high.index];
 
-    if(p_low.transformed.z < GLFix(CLIP_PLANE) && p_middle.transformed.z < GLFix(CLIP_PLANE) && p_high.transformed.z < GLFix(CLIP_PLANE))
-        return true;
+    const bool all_in_front =
+        p_low.transformed.z >= GLFix(CLIP_PLANE)
+        && p_middle.transformed.z >= GLFix(CLIP_PLANE)
+        && p_high.transformed.z >= GLFix(CLIP_PLANE);
 
-    VERTEX invisible[3];
-    const IndexedVertex *visible[3];
-    ProcessedPosition *p_visible[3];
-    unsigned int count_invisible = 0, count_visible = 0;
-
-    if(p_low.transformed.z < GLFix(CLIP_PLANE))
-        invisible[count_invisible++] = MAKE_VERTEX(p_low.transformed, low);
-    else
+    if(all_in_front)
     {
-        visible[count_visible] = &low;
-        p_visible[count_visible++] = &p_low;
-    }
+        // Preserve the cached perspective path for the normal case where no
+        // vertex approaches or crosses the near plane.
+        VERTEX a = perspective(low, p_low);
+        VERTEX b = perspective(middle, p_middle);
+        VERTEX c = perspective(high, p_high);
 
-    if(p_middle.transformed.z < GLFix(CLIP_PLANE))
-        invisible[count_invisible++] = MAKE_VERTEX(p_middle.transformed, middle);
-    else
-    {
-        visible[count_visible] = &middle;
-        p_visible[count_visible++] = &p_middle;
-    }
-
-    if(p_high.transformed.z < GLFix(CLIP_PLANE))
-        invisible[count_invisible++] = MAKE_VERTEX(p_high.transformed, high);
-    else
-    {
-        visible[count_visible] = &high;
-        p_visible[count_visible++] = &p_high;
-    }
-
-    //Interpolated vertices
-    VERTEX v1, v2;
-
-    //Temporary vertices
-    VERTEX t0, t1;
-
-    switch(count_visible)
-    {
-    case 0:
-        return true;
-#ifdef Z_CLIPPING
-    case 1:
-        t0 = MAKE_VERTEX(p_visible[0]->transformed, *visible[0]);
-
-        nglInterpolateVertexZ(&invisible[0], &t0, &v1);
-        nglInterpolateVertexZ(&invisible[1], &t0, &v2);
-
-        t0 = perspective(*visible[0], *p_visible[0]);
-        nglPerspective(&v1);
-        nglPerspective(&v2);
-
-        if(backface_culling && nglIsBackface(&t0, &v1, &v2))
+        if(backface_culling && nglIsBackface(&a, &b, &c))
             return false;
 
-        nglDrawTriangleZClipped(&t0, &v1, &v2);
+        nglDrawTriangleZClipped(&a, &b, &c);
+        return true;
+    }
+
+#ifndef Z_CLIPPING
+    // Keep the legacy opt-out behavior when near-plane clipping is disabled.
+    return true;
+#else
+    const VERTEX source[3] = {
+        MAKE_VERTEX(p_low.transformed, low),
+        MAKE_VERTEX(p_middle.transformed, middle),
+        MAKE_VERTEX(p_high.transformed, high)
+    };
+    VERTEX clipped[4];
+    const unsigned int clipped_count =
+        nglClipTriangleToNearPlane(source, clipped, GLFix(CLIP_PLANE));
+
+    if(clipped_count < 3)
         return true;
 
-    case 2:
-        t0 = MAKE_VERTEX(p_visible[0]->transformed, *visible[0]);
-        t1 = MAKE_VERTEX(p_visible[1]->transformed, *visible[1]);
+    // New intersection vertices and the surviving original vertices are all
+    // projected only after the camera-space polygon has been clipped.
+    for(unsigned int i = 0; i < clipped_count; ++i)
+        nglPerspective(&clipped[i]);
 
-        nglInterpolateVertexZ(&t0, &invisible[0], &v1);
-        nglInterpolateVertexZ(&t1, &invisible[0], &v2);
+    // Preserve the old mesh path's conservative behavior for clipped quads.
+    if(clipped_count == 3 && backface_culling
+       && nglIsBackface(&clipped[0], &clipped[1], &clipped[2]))
+        return false;
 
-        t0 = perspective(*visible[0], *p_visible[0]);
-        t1 = perspective(*visible[1], *p_visible[1]);
-        nglPerspective(&v1);
+    for(unsigned int i = 1; i + 1 < clipped_count; ++i)
+        nglDrawTriangleZClipped(&clipped[0], &clipped[i], &clipped[i + 1]);
 
-        //TODO: Hack: This doesn't work as expected
-        /*if(backface_culling && nglIsBackface(&t0, &t1, &v1))
-            return false;*/
-
-        nglPerspective(&v2);
-        nglDrawTriangleZClipped(&t0, &t1, &v1);
-        nglDrawTriangleZClipped(&t1, &v1, &v2);
-        return true;
+    return true;
 #endif
-    case 3:
-        invisible[0] = perspective(low, p_low);
-        invisible[1] = perspective(middle, p_middle);
-        invisible[2] = perspective(high, p_high);
-
-        if(backface_culling && nglIsBackface(&invisible[0], &invisible[1], &invisible[2]))
-            return false;
-
-        nglDrawTriangleZClipped(&invisible[0], &invisible[1], &invisible[2]);
-        return true;
-
-    default:
-        return true;
-    }
 }
 
 void nglDrawArray(const IndexedVertex *vertices, const unsigned int count_vertices, const VECTOR3 *positions, const unsigned int count_positions, ProcessedPosition *processed, const GLDrawMode draw_mode, const bool reset_processed)
