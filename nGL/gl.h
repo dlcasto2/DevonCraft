@@ -118,6 +118,33 @@ inline void nglSetPerspectiveTextureAttributes(VERTEX &vertex, GLFix near_depth)
     vertex.v_over_z = perspectiveProduct(vertex.v, vertex.tex_q);
 }
 
+// Clip a camera-space line segment before perspective projection. The
+// legacy projector divides by integer z, so its minimum safe depth is one
+// world unit even when a smaller near plane has been configured.
+inline bool nglClipLineToNearPlane(VERTEX &a, VERTEX &b, GLFix near_depth)
+{
+    const GLFix integer_safe_depth(1);
+    const GLFix clip_depth = near_depth < integer_safe_depth ? integer_safe_depth : near_depth;
+
+    if(a.z < clip_depth && b.z < clip_depth)
+        return false;
+
+    if(a.z < clip_depth || b.z < clip_depth)
+    {
+        VERTEX &outside = a.z < clip_depth ? a : b;
+        const VERTEX &inside = a.z < clip_depth ? b : a;
+        const GLFix t = (clip_depth - outside.z) / (inside.z - outside.z);
+
+        outside.x += (inside.x - outside.x) * t;
+        outside.y += (inside.y - outside.y) * t;
+        outside.u += (inside.u - outside.u) * t;
+        outside.v += (inside.v - outside.v) * t;
+        outside.z = clip_depth;
+    }
+
+    return true;
+}
+
 struct TEXTURE
 {
     uint16_t width; uint16_t height;
