@@ -140,10 +140,15 @@ TEST_CASE("creative flight moves vertically and respects ceiling and floor colli
     playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
     CHECK(box.low_y == GLFix(144));
 
-    // A second ascent would push the two-block player into the ceiling.
+    // With the 1.7-block player collider, a second 16-unit ascent still fits;
+    // the third would intersect the ceiling and must be blocked.
     playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
-    CHECK(box.low_y == GLFix(144));
+    CHECK(box.low_y == GLFix(160));
+    playerFlyTick(w, box, 0, 0, true, false, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(160));
 
+    playerFlyTick(w, box, 0, 0, false, true, GLFix(0), GLFix(16));
+    CHECK(box.low_y == GLFix(144));
     playerFlyTick(w, box, 0, 0, false, true, GLFix(0), GLFix(16));
     CHECK(box.low_y == GLFix(128));
 
