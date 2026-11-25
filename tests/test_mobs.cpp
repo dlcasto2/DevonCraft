@@ -127,7 +127,7 @@ TEST_CASE("a player already overlapping a mob is moved to a clear side") {
     REQUIRE(collision.intersects(player));
     CHECK(separatePlayerFromMobs(player, pool, terrain));
     CHECK_FALSE(collision.intersects(player));
-    CHECK(player.low_x != GLFix(130) || player.low_z != GLFix(130));
+    CHECK(static_cast<int>(player.low_x != GLFix(130)) + static_cast<int>(player.low_z != GLFix(130)) > 0);
 }
 
 TEST_CASE("dropped items do not become player collision hitboxes") {
