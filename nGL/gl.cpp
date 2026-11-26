@@ -475,7 +475,7 @@ bool clipLineToViewport(VERTEX &a, VERTEX &b)
 void nglDrawLine3D(const VERTEX *v1, const VERTEX *v2)
 {
     VERTEX v1_p = *v1, v2_p = *v2;
-    if(!nglClipLineToNearPlane(v1_p, v2_p, nglGetNearPlane()))
+    if(!nglClipLineToNearPlane(v1_p, v2_p, GLFix(CLIP_PLANE)))
         return;
 
     nglPerspective(&v1_p);
@@ -741,28 +741,7 @@ void nglDrawTriangleZClipped(const VERTEX *low, const VERTEX *middle, const VERT
 #ifdef Z_CLIPPING
     void nglInterpolateVertexZ(const VERTEX *from, const VERTEX *to, VERTEX *res)
     {
-        GLFix diff = to->z - from->z;
-        GLFix t = (GLFix(CLIP_PLANE) - from->z) / diff;
-
-        res->x = from->x + (to->x - from->x) * t;
-        res->y = from->y + (to->y - from->y) * t;
-        res->z = CLIP_PLANE;
-
-        #ifdef TEXTURE_SUPPORT
-            res->u = from->u + (to->u - from->u) * t;
-            res->u = res->u.wholes();
-            res->v = from->v + (to->v - from->v) * t;
-            res->v = res->v.wholes();
-        #endif
-
-        #ifdef INTERPOLATE_COLORS
-            RGB c_from = rgbColor(from->c);
-            RGB c_to = rgbColor(to->c);
-
-            res->c = colorRGB(c_from.r + (c_to.r - c_from.r) * t, c_from.r + (c_to.r - c_from.r) * t, c_from.r + (c_to.r - c_from.r) * t);
-        #else
-            res->c = from->c;
-        #endif
+        *res = nglIntersectNearPlane(*from, *to, GLFix(CLIP_PLANE));
     }
 #endif
 
@@ -798,83 +777,33 @@ bool nglDrawTriangle(const VERTEX *low, const VERTEX *middle, const VERTEX *high
         return false;
 
     nglDrawTriangleZClipped(&low_p, &middle_p, &high_p);
-
     return true;
 #else
-    if(low->z < GLFix(CLIP_PLANE) && middle->z < GLFix(CLIP_PLANE) && high->z < GLFix(CLIP_PLANE))
+    const VERTEX source[3] = {*low, *middle, *high};
+    VERTEX clipped[4];
+    const unsigned int clipped_count =
+        nglClipTriangleToNearPlane(source, clipped, GLFix(CLIP_PLANE));
+
+    if(clipped_count < 3)
         return true;
 
-    VERTEX invisible[3];
-    VERTEX visible[3];
-    int count_invisible = -1, count_visible = -1;
+    // Projection must happen after clipping: a vertex behind the camera is
+    // never divided by z and cannot wrap across the screen.
+    for(unsigned int i = 0; i < clipped_count; ++i)
+        nglPerspective(&clipped[i]);
 
-    if(low->z < GLFix(CLIP_PLANE))
-        invisible[++count_invisible] = *low;
-    else
-        visible[++count_visible] = *low;
+    // Clipping preserves polygon winding. Test the first three projected
+    // vertices for both triangles and quads before fan-triangulating.
+    if(backface_culling
+       && nglIsBackface(&clipped[0], &clipped[1], &clipped[2]))
+        return false;
 
-    if(middle->z < GLFix(CLIP_PLANE))
-        invisible[++count_invisible] = *middle;
-    else
-        visible[++count_visible] = *middle;
+    // A triangle clipped by one plane can become a quad. Fan-triangulate it
+    // only after perspective projection and preserve its original winding.
+    for(unsigned int i = 1; i + 1 < clipped_count; ++i)
+        nglDrawTriangleZClipped(&clipped[0], &clipped[i], &clipped[i + 1]);
 
-    if(high->z < GLFix(CLIP_PLANE))
-        invisible[++count_invisible] = *high;
-    else
-        visible[++count_visible] = *high;
-
-    //Interpolated vertices
-    VERTEX v1, v2;
-
-    switch(count_visible)
-    {
-    case -1:
-        return true;
-
-    case 0:
-        nglInterpolateVertexZ(&invisible[0], &visible[0], &v1);
-        nglInterpolateVertexZ(&invisible[1], &visible[0], &v2);
-
-        nglPerspective(&visible[0]);
-        nglPerspective(&v1);
-        nglPerspective(&v2);
-
-        if(backface_culling && nglIsBackface(&visible[0], &v1, &v2))
-            return false;
-
-        nglDrawTriangleZClipped(&visible[0], &v1, &v2);
-        return true;
-
-    case 1:
-        nglInterpolateVertexZ(&visible[0], &invisible[0], &v1);
-        nglInterpolateVertexZ(&visible[1], &invisible[0], &v2);
-
-        nglPerspective(&visible[0]);
-        nglPerspective(&visible[1]);
-        nglPerspective(&v1);
-
-        if(backface_culling && nglIsBackface(&visible[0], &visible[1], &v1))
-            return false;
-
-        nglPerspective(&v2);
-        nglDrawTriangleZClipped(&visible[0], &visible[1], &v1);
-        nglDrawTriangleZClipped(&visible[1], &v1, &v2);
-        return true;
-
-    case 2:
-        nglPerspective(&visible[0]);
-        nglPerspective(&visible[1]);
-        nglPerspective(&visible[2]);
-
-        if(backface_culling && nglIsBackface(&visible[0], &visible[1], &visible[2]))
-            return false;
-
-        nglDrawTriangleZClipped(&visible[0], &visible[1], &visible[2]);
-        return true;
-
-    default:
-        return true;
-    }
+    return true;
 #endif
 }
 

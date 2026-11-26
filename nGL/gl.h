@@ -118,30 +118,111 @@ inline void nglSetPerspectiveTextureAttributes(VERTEX &vertex, GLFix near_depth)
     vertex.v_over_z = perspectiveProduct(vertex.v, vertex.tex_q);
 }
 
-// Clip a camera-space line segment before perspective projection. The
-// legacy projector divides by integer z, so its minimum safe depth is one
-// world unit even when a smaller near plane has been configured.
-inline bool nglClipLineToNearPlane(VERTEX &a, VERTEX &b, GLFix near_depth)
+// Interpolate fixed-point camera-space attributes without the 32-bit
+// intermediate overflow in Fix::operator*. This is used at the near plane,
+// where large camera-space coordinates can otherwise wrap before projection.
+inline GLFix nglClipLerp(GLFix from, GLFix to, GLFix t)
 {
-    const GLFix integer_safe_depth(1);
-    const GLFix clip_depth = near_depth < integer_safe_depth ? integer_safe_depth : near_depth;
+    GLFix result;
+    const int64_t delta = static_cast<int64_t>(to.value) - from.value;
+    result.value = static_cast<int32_t>(
+        static_cast<int64_t>(from.value)
+        + (delta * t.value) / GLFix::scaleFactor());
+    return result;
+}
 
-    if(a.z < clip_depth && b.z < clip_depth)
-        return false;
+inline VERTEX nglIntersectNearPlane(const VERTEX &from, const VERTEX &to, GLFix clip_depth)
+{
+    const int64_t z_delta = static_cast<int64_t>(to.z.value) - from.z.value;
+    VERTEX result;
+    if(z_delta == 0)
+        return result;
 
-    if(a.z < clip_depth || b.z < clip_depth)
+    GLFix t;
+    const int64_t numerator =
+        (static_cast<int64_t>(clip_depth.value) - from.z.value) * GLFix::scaleFactor();
+    int64_t t_value = numerator / z_delta;
+    if(t_value < 0)
+        t_value = 0;
+    else if(t_value > GLFix::scaleFactor())
+        t_value = GLFix::scaleFactor();
+    t.value = static_cast<int32_t>(t_value);
+
+    result.x = nglClipLerp(from.x, to.x, t);
+    result.y = nglClipLerp(from.y, to.y, t);
+    result.z = clip_depth;
+    result.u = nglClipLerp(from.u, to.u, t);
+    result.v = nglClipLerp(from.v, to.v, t);
+#ifdef INTERPOLATE_COLORS
+    const int r0 = (from.c >> 11) & 31, r1 = (to.c >> 11) & 31;
+    const int g0 = (from.c >> 5) & 63, g1 = (to.c >> 5) & 63;
+    const int b0 = from.c & 31, b1 = to.c & 31;
+    const int r = r0 + static_cast<int>((static_cast<int64_t>(r1 - r0) * t.value) / GLFix::scaleFactor());
+    const int g = g0 + static_cast<int>((static_cast<int64_t>(g1 - g0) * t.value) / GLFix::scaleFactor());
+    const int b = b0 + static_cast<int>((static_cast<int64_t>(b1 - b0) * t.value) / GLFix::scaleFactor());
+    result.c = static_cast<COLOR>((r << 11) | (g << 5) | b);
+#else
+    // In textured mode c contains face flags rather than an interpolated color.
+    result.c = from.c;
+#endif
+    return result;
+}
+
+// Sutherland-Hodgman clipping of a triangle against the camera-space near
+// plane. A clipped triangle becomes a 3- or 4-vertex polygon, still in its
+// original winding order. The caller projects it only after this step.
+inline unsigned int nglClipTriangleToNearPlane(
+    const VERTEX triangle[3], VERTEX clipped[4],
+    GLFix clip_depth = GLFix(CLIP_PLANE))
+{
+    unsigned int count = 0;
+    const VERTEX *previous = &triangle[2];
+    bool previous_inside = previous->z >= clip_depth;
+
+    for(unsigned int i = 0; i < 3; ++i)
     {
-        VERTEX &outside = a.z < clip_depth ? a : b;
-        const VERTEX &inside = a.z < clip_depth ? b : a;
-        const GLFix t = (clip_depth - outside.z) / (inside.z - outside.z);
+        const VERTEX *current = &triangle[i];
+        const bool current_inside = current->z >= clip_depth;
 
-        outside.x += (inside.x - outside.x) * t;
-        outside.y += (inside.y - outside.y) * t;
-        outside.u += (inside.u - outside.u) * t;
-        outside.v += (inside.v - outside.v) * t;
-        outside.z = clip_depth;
+        // Vertices exactly on the plane are already emitted as inside
+        // vertices; do not add the same point again as an intersection.
+        if(previous_inside != current_inside
+           && previous->z != clip_depth && current->z != clip_depth)
+            clipped[count++] = nglIntersectNearPlane(*previous, *current, clip_depth);
+
+        if(current_inside)
+            clipped[count++] = *current;
+
+        previous = current;
+        previous_inside = current_inside;
     }
 
+    return count;
+}
+
+// Clip camera-space lines with the same geometric near plane used by triangles.
+// near_plane is a projection scale, not the camera-space clipping distance.
+inline bool nglClipLineToNearPlane(VERTEX &a, VERTEX &b, GLFix clip_depth)
+{
+    // nglPerspective's legacy integer-depth division becomes unsafe below
+    // one world unit, even when a caller configures a smaller clip distance.
+    const GLFix integer_safe_depth(1);
+    if(clip_depth < integer_safe_depth)
+        clip_depth = integer_safe_depth;
+
+    const bool a_inside = a.z >= clip_depth;
+    const bool b_inside = b.z >= clip_depth;
+
+    if(!a_inside && !b_inside)
+        return false;
+    if(a_inside != b_inside)
+    {
+        const VERTEX intersection = nglIntersectNearPlane(a, b, clip_depth);
+        if(!a_inside)
+            a = intersection;
+        else
+            b = intersection;
+    }
     return true;
 }
 

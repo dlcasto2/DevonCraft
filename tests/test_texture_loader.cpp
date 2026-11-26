@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <cstdlib>
 #include <unistd.h>
 
 #include "texturetools.h"
@@ -127,4 +128,31 @@ TEST_CASE("oversized binary PPM dimensions are rejected before allocation")
 
     CHECK(loaded == nullptr);
     unlink(path);
+}
+
+TEST_CASE("greyscale texture conversion writes neutral RGB565 values")
+{
+    TEXTURE *texture = newTexture(4, 1, 0, false, 0);
+    REQUIRE(texture != nullptr);
+
+    texture->bitmap[0] = colorRGB(1, 0, 0);
+    texture->bitmap[1] = colorRGB(0, 1, 0);
+    texture->bitmap[2] = colorRGB(0, 0, 1);
+    texture->bitmap[3] = colorRGB(1, 1, 1);
+
+    greyscaleTexture(*texture);
+
+    for(unsigned int i = 0; i < 4; ++i)
+    {
+        const RGB gray = rgbColor(texture->bitmap[i]);
+        CHECK(std::abs(gray.r.value - gray.g.value) <= 10);
+        CHECK(std::abs(gray.g.value - gray.b.value) <= 10);
+    }
+
+    // White must remain visibly gray in all three packed RGB565 channels.
+    CHECK(((texture->bitmap[3] >> 11) & 0x1F) > 0);
+    CHECK(((texture->bitmap[3] >> 5) & 0x3F) > 0);
+    CHECK((texture->bitmap[3] & 0x1F) > 0);
+
+    deleteTexture(texture);
 }
