@@ -99,14 +99,14 @@ static bool drawTriangle(ProcessedPosition *processed, const IndexedVertex &low,
     for(unsigned int i = 0; i < clipped_count; ++i)
         nglPerspective(&clipped[i]);
 
-    if(offScreen(clipped, clipped_count))
-        return true;
-
     // Clipping preserves polygon winding. Cull clipped triangles and quads
-    // consistently before fan-triangulating the visible polygon.
+    // consistently before checking visibility or fan-triangulating the polygon.
     if(backface_culling
        && nglIsBackface(&clipped[0], &clipped[1], &clipped[2]))
         return false;
+
+    if(offScreen(clipped, clipped_count))
+        return true;
 
     for(unsigned int i = 1; i + 1 < clipped_count; ++i)
         nglDrawTriangleZClipped(&clipped[0], &clipped[i], &clipped[i + 1]);
