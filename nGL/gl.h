@@ -19,8 +19,14 @@
 //GLFix is an integral part of all calculations.
 //Changing resolution and width may be an improvement or even break everything.
 typedef Fix<8, int32_t> GLFix;
-// Q10 texture attributes for perspective-correct interpolation.
-typedef Fix<10, int32_t> TexFix;
+// Q16 texture attributes for perspective-correct interpolation. Q10 was too
+// coarse: at CLIP_PLANE (25 units) near/z is ~0.04, so Q10 rounding alone
+// skewed texture coordinates by several percent, and per-row deltas of tex_q
+// truncated to zero across most of a floor.
+typedef Fix<16, int32_t> TexFix;
+// Q24 accumulators for span interpolation of texture coordinates. Their deltas
+// are often well under one Q16 step per row or pixel.
+typedef Fix<24, int64_t> TexAcc;
 
 inline TexFix perspectiveReciprocalDepth(GLFix depth, GLFix near_depth)
 {
@@ -30,7 +36,7 @@ inline TexFix perspectiveReciprocalDepth(GLFix depth, GLFix near_depth)
 inline TexFix perspectiveProduct(TexFix a, TexFix b)
 {
     TexFix result;
-    result.value = static_cast<int32_t>((static_cast<int64_t>(a.value) * b.value) / 1024);
+    result.value = static_cast<int32_t>((static_cast<int64_t>(a.value) * b.value) / TexFix::scaleFactor());
     return result;
 }
 inline TexFix perspectiveProduct(GLFix coordinate, TexFix reciprocal_depth)
@@ -40,15 +46,28 @@ inline TexFix perspectiveProduct(GLFix coordinate, TexFix reciprocal_depth)
 inline TexFix perspectiveLerp(TexFix a, TexFix b, TexFix t)
 {
     TexFix result;
-    result.value = static_cast<int32_t>(a.value + (static_cast<int64_t>(b.value - a.value) * t.value) / 1024);
+    result.value = static_cast<int32_t>(a.value + (static_cast<int64_t>(b.value - a.value) * t.value) / TexFix::scaleFactor());
     return result;
 }
 inline GLFix perspectiveRecoverCoordinate(TexFix coordinate_over_depth, TexFix reciprocal_depth)
 {
     if(reciprocal_depth <= TexFix(0)) return GLFix(0);
     GLFix result;
-    const int64_t q10 = (static_cast<int64_t>(coordinate_over_depth.value) * 1024) / reciprocal_depth.value;
-    result.value = static_cast<int32_t>(q10 / 4);
+    // Both operands are Q16, so the ratio is coordinate/depth; scaling by the
+    // GLFix factor yields the Q8 result directly.
+    const int64_t scaled = (static_cast<int64_t>(coordinate_over_depth.value) * GLFix::scaleFactor()) / reciprocal_depth.value;
+    result.value = static_cast<int32_t>(scaled);
+    return result;
+}
+
+// Perspective-correct texel coordinate numer/denom, as a Q24 texel value.
+// denom is a positive reciprocal depth, so a non-positive value means no sample.
+inline TexAcc texelOver(const TexAcc numer, const TexAcc denom)
+{
+    TexAcc result;
+    result.value = denom.value > 0
+        ? (numer.value * TexAcc::scaleFactor()) / denom.value
+        : 0;
     return result;
 }
 

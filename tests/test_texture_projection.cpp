@@ -1,3 +1,4 @@
+#include <cmath>
 #include "doctest.h"
 #include "gl.h"
 
@@ -143,4 +144,36 @@ TEST_CASE("clipped quad preserves winding for back-face culling")
 
     // nglIsBackface returns true for this negative projected winding.
     CHECK(signed_area < 0.0);
+}
+
+TEST_CASE("reciprocal depth keeps precision at the clip distance")
+{
+    // Q10 stored near/z = 0.04 with ~2.5% error, which skewed UVs on every floor.
+    VERTEX vertex{0, 0, GLFix(25), GLFix(0), GLFix(0), 0xFFFF};
+    nglSetPerspectiveTextureAttributes(vertex, GLFix(1));
+
+    CHECK(std::fabs(vertex.tex_q.toFloat() - 0.04f) < 1e-4f);
+}
+
+TEST_CASE("per-row texture coordinate steps do not truncate to zero across a floor")
+{
+    // Regression: with Q10 accumulators, tex_q fell by about 31 Q10 steps over
+    // about 175 rows, so every row's delta integer-divided down to zero and
+    // texture coordinates stopped tracking depth.
+    VERTEX near_vertex{0, 0, GLFix(25), GLFix(0), GLFix(0), 0xFFFF};
+    VERTEX far_vertex{0, 0, GLFix(120), GLFix(0), GLFix(0), 0xFFFF};
+    nglSetPerspectiveTextureAttributes(near_vertex, GLFix(1));
+    nglSetPerspectiveTextureAttributes(far_vertex, GLFix(1));
+
+    const TexAcc per_row = TexAcc(far_vertex.tex_q - near_vertex.tex_q) / 175;
+    CHECK(per_row.value != 0);
+}
+
+TEST_CASE("texel coordinates divide in full precision")
+{
+    // u = 40 texels at tex_q 0.5 gives uq = 20; dividing by 0.5 must return 40.
+    const TexAcc uq = TexAcc(TexFix(20));
+    const TexAcc q = TexAcc(TexFix(0.5f));
+    const TexAcc u = texelOver(uq, q);
+    CHECK(std::fabs(u.toFloat() - 40.0f) < 1e-3f);
 }

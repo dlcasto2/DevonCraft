@@ -59,18 +59,18 @@
     const TriFix dz_far = TriFix(high->z - low->z) / height_far;
 
     #ifdef TEXTURE_SUPPORT
-        const TriFix duq_upper = TriFix(high->u_over_z - middle->u_over_z) / height_upper;
-        const TriFix dvq_upper = TriFix(high->v_over_z - middle->v_over_z) / height_upper;
-        const TriFix dq_upper = TriFix(high->tex_q - middle->tex_q) / height_upper;
-        const TriFix duq_lower = TriFix(middle->u_over_z - low->u_over_z) / height_lower;
-        const TriFix dvq_lower = TriFix(middle->v_over_z - low->v_over_z) / height_lower;
-        const TriFix dq_lower = TriFix(middle->tex_q - low->tex_q) / height_lower;
-        const TriFix duq_far = TriFix(high->u_over_z - low->u_over_z) / height_far;
-        const TriFix dvq_far = TriFix(high->v_over_z - low->v_over_z) / height_far;
-        const TriFix dq_far = TriFix(high->tex_q - low->tex_q) / height_far;
-        TriFix uqstart = low->u_over_z, uqend = low->u_over_z;
-        TriFix vqstart = low->v_over_z, vqend = low->v_over_z;
-        TriFix qstart = low->tex_q, qend = low->tex_q;
+        const TexAcc duq_upper = TexAcc(high->u_over_z - middle->u_over_z) / height_upper;
+        const TexAcc dvq_upper = TexAcc(high->v_over_z - middle->v_over_z) / height_upper;
+        const TexAcc dq_upper = TexAcc(high->tex_q - middle->tex_q) / height_upper;
+        const TexAcc duq_lower = TexAcc(middle->u_over_z - low->u_over_z) / height_lower;
+        const TexAcc dvq_lower = TexAcc(middle->v_over_z - low->v_over_z) / height_lower;
+        const TexAcc dq_lower = TexAcc(middle->tex_q - low->tex_q) / height_lower;
+        const TexAcc duq_far = TexAcc(high->u_over_z - low->u_over_z) / height_far;
+        const TexAcc dvq_far = TexAcc(high->v_over_z - low->v_over_z) / height_far;
+        const TexAcc dq_far = TexAcc(high->tex_q - low->tex_q) / height_far;
+        TexAcc uqstart = low->u_over_z, uqend = low->u_over_z;
+        TexAcc vqstart = low->v_over_z, vqend = low->v_over_z;
+        TexAcc qstart = low->tex_q, qend = low->tex_q;
     #elif defined(INTERPOLATE_COLORS)
         const RGB high_rgb = rgbColor(high->c);
         const RGB middle_rgb = rgbColor(middle->c);
@@ -149,7 +149,7 @@
 
     TriFix dx_current = dx_lower, dz_current = dz_lower;
 #ifdef TEXTURE_SUPPORT
-    TriFix duq_current = duq_lower, dvq_current = dvq_lower, dq_current = dq_lower;
+    TexAcc duq_current = duq_lower, dvq_current = dvq_lower, dq_current = dq_lower;
 #elif defined(INTERPOLATE_COLORS)
     TriFix dr_current = dr_lower, dg_current = dg_lower, db_current = db_lower;
 #endif
@@ -190,10 +190,11 @@
             TriFix z = zstart;
 
             #ifdef TEXTURE_SUPPORT
-                const TriFix duq = (uqend - uqstart) * inv_l;
-                const TriFix dvq = (vqend - vqstart) * inv_l;
-                const TriFix dq = (qend - qstart) * inv_l;
-                TriFix uq = uqstart, vq = vqstart, q = qstart;
+                const TexAcc inv_tex = TexAcc(1) / line_width;
+                const TexAcc duq = (uqend - uqstart) * inv_tex;
+                const TexAcc dvq = (vqend - vqstart) * inv_tex;
+                const TexAcc dq = (qend - qstart) * inv_tex;
+                TexAcc uq = uqstart, vq = vqstart, q = qstart;
             #elif defined(INTERPOLATE_COLORS)
                 const TriFix dr = (rend - rstart) * inv_l;
                 const TriFix dg = (gend - gstart) * inv_l;
@@ -212,25 +213,23 @@
                 // the span. This avoids reciprocal division for every pixel.
                 const int span = std::min(8, x2 - x + 1);
                 const int span_steps = span - 1;
-                const TriFix q_end = q + dq * span_steps;
-                const TriFix uq_end = uq + duq * span_steps;
-                const TriFix vq_end = vq + dvq * span_steps;
-                const TriFix inv_q = q > TriFix(0) ? TriFix(1) / q : TriFix(0);
-                const TriFix inv_q_end = q_end > TriFix(0) ? TriFix(1) / q_end : inv_q;
-                const TriFix u_start = perspectiveProduct(uq, inv_q);
-                const TriFix v_start = perspectiveProduct(vq, inv_q);
-                const TriFix u_end = perspectiveProduct(uq_end, inv_q_end);
-                const TriFix v_end = perspectiveProduct(vq_end, inv_q_end);
-                const TriFix du = span_steps ? (u_end - u_start) / span_steps : TriFix(0);
-                const TriFix dv = span_steps ? (v_end - v_start) / span_steps : TriFix(0);
-                TriFix u = u_start, v = v_start;
+                const TexAcc q_end = q + dq * span_steps;
+                const TexAcc uq_end = uq + duq * span_steps;
+                const TexAcc vq_end = vq + dvq * span_steps;
+                const TexAcc u_start = texelOver(uq, q);
+                const TexAcc v_start = texelOver(vq, q);
+                const TexAcc u_end = texelOver(uq_end, q_end);
+                const TexAcc v_end = texelOver(vq_end, q_end);
+                const TexAcc du = span_steps ? (u_end - u_start) / span_steps : TexAcc(0);
+                const TexAcc dv = span_steps ? (v_end - v_start) / span_steps : TexAcc(0);
+                TexAcc u = u_start, v = v_start;
 
                 for(int i = 0; i < span; ++i, ++x, ++z_buf, ++screen_buf)
                 {
                     if(__builtin_expect(TriFix(*z_buf) > z, true))
                     {
-                        const int tex_x = clampTextureTexel(u.floor(), static_cast<int>(loc_texture.width));
-                        const int tex_y = clampTextureTexel(v.floor(), static_cast<int>(loc_texture.height));
+                        const int tex_x = clampTextureTexel(static_cast<int>(u.floor()), static_cast<int>(loc_texture.width));
+                        const int tex_y = clampTextureTexel(static_cast<int>(v.floor()), static_cast<int>(loc_texture.height));
                         COLOR c = loc_texture.bitmap[tex_x + tex_y*loc_texture.width];
                         #ifdef TRANSPARENCY
                             if(__builtin_expect(c != 0x0000, 1))
@@ -331,10 +330,11 @@
             TriFix z = zend;
 
             #ifdef TEXTURE_SUPPORT
-                const TriFix duq = (uqend - uqstart) * inv_l;
-                const TriFix dvq = (vqend - vqstart) * inv_l;
-                const TriFix dq = (qend - qstart) * inv_l;
-                TriFix uq = uqend, vq = vqend, q = qend;
+                const TexAcc inv_tex = TexAcc(1) / line_width;
+                const TexAcc duq = (uqend - uqstart) * inv_tex;
+                const TexAcc dvq = (vqend - vqstart) * inv_tex;
+                const TexAcc dq = (qend - qstart) * inv_tex;
+                TexAcc uq = uqend, vq = vqend, q = qend;
             #elif defined(INTERPOLATE_COLORS)
                 const TriFix dg = (gend - gstart) * inv_l;
                 const TriFix db = (bend - bstart) * inv_l;
@@ -353,25 +353,23 @@
                 // the span. This avoids reciprocal division for every pixel.
                 const int span = std::min(8, x2 - x + 1);
                 const int span_steps = span - 1;
-                const TriFix q_end = q + dq * span_steps;
-                const TriFix uq_end = uq + duq * span_steps;
-                const TriFix vq_end = vq + dvq * span_steps;
-                const TriFix inv_q = q > TriFix(0) ? TriFix(1) / q : TriFix(0);
-                const TriFix inv_q_end = q_end > TriFix(0) ? TriFix(1) / q_end : inv_q;
-                const TriFix u_start = perspectiveProduct(uq, inv_q);
-                const TriFix v_start = perspectiveProduct(vq, inv_q);
-                const TriFix u_end = perspectiveProduct(uq_end, inv_q_end);
-                const TriFix v_end = perspectiveProduct(vq_end, inv_q_end);
-                const TriFix du = span_steps ? (u_end - u_start) / span_steps : TriFix(0);
-                const TriFix dv = span_steps ? (v_end - v_start) / span_steps : TriFix(0);
-                TriFix u = u_start, v = v_start;
+                const TexAcc q_end = q + dq * span_steps;
+                const TexAcc uq_end = uq + duq * span_steps;
+                const TexAcc vq_end = vq + dvq * span_steps;
+                const TexAcc u_start = texelOver(uq, q);
+                const TexAcc v_start = texelOver(vq, q);
+                const TexAcc u_end = texelOver(uq_end, q_end);
+                const TexAcc v_end = texelOver(vq_end, q_end);
+                const TexAcc du = span_steps ? (u_end - u_start) / span_steps : TexAcc(0);
+                const TexAcc dv = span_steps ? (v_end - v_start) / span_steps : TexAcc(0);
+                TexAcc u = u_start, v = v_start;
 
                 for(int i = 0; i < span; ++i, ++x, ++z_buf, ++screen_buf)
                 {
                     if(__builtin_expect(TriFix(*z_buf) > z, true))
                     {
-                        const int tex_x = clampTextureTexel(u.floor(), static_cast<int>(loc_texture.width));
-                        const int tex_y = clampTextureTexel(v.floor(), static_cast<int>(loc_texture.height));
+                        const int tex_x = clampTextureTexel(static_cast<int>(u.floor()), static_cast<int>(loc_texture.width));
+                        const int tex_y = clampTextureTexel(static_cast<int>(v.floor()), static_cast<int>(loc_texture.height));
                         COLOR c = loc_texture.bitmap[tex_x + tex_y*loc_texture.width];
                         #ifdef TRANSPARENCY
                             if(__builtin_expect(c != 0x0000, 1))
