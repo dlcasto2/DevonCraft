@@ -31,6 +31,18 @@ void activatePath(const std::string &path)
     Task::savefile = active_path.c_str();
 }
 
+// Try a recovery copy without changing the active world's canonical save path.
+// Task::load is synchronous, so the candidate string remains alive throughout
+// the read; restore the active pointer before returning to the caller.
+LoadResult loadFromTemporaryPath(const std::string &path)
+{
+    const char *const active_savefile = Task::savefile;
+    Task::savefile = path.c_str();
+    const LoadResult result = Task::load();
+    Task::savefile = active_savefile;
+    return result;
+}
+
 bool supportedVersion(int version)
 {
     return version >= 4 && version <= 8;
@@ -201,7 +213,7 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
     }
 
     activatePath(target_path);
-    const LoadResult result = Task::load();
+    LoadResult result = Task::load();
     if(result == LoadResult::OK)
     {
         has_active_world = true;
@@ -210,14 +222,40 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
         return;
     }
 
-    // Task::load deliberately discards partial data on corruption. Since the
-    // outgoing world was saved above, restore it before returning to play.
+    // A previously saved world may have a usable .bak even when its primary
+    // file is damaged. Try that copy before abandoning the requested switch.
+    const std::string target_backup = backupPathFor(target_path);
+    if(access(target_backup.c_str(), F_OK) == 0)
+    {
+        const LoadResult backup_result = loadFromTemporaryPath(target_backup);
+        if(backup_result == LoadResult::OK)
+        {
+            activatePath(target_path);
+            has_active_world = true;
+            world_task.setMessage("World loaded from backup.");
+            world_task.makeCurrent();
+            return;
+        }
+    }
+
+    // Task::load deliberately discards partial data on corruption. The outgoing
+    // world was saved before attempting the switch, so restore its primary file.
     if(had_active_world)
     {
         activatePath(previous_path);
-        const LoadResult restore = Task::load();
+        LoadResult restore = Task::load();
+        if(restore != LoadResult::OK)
+        {
+            // The current save should be preferred, but retain a last-resort
+            // route back into play if that file cannot be read.
+            const std::string previous_backup = backupPathFor(previous_path);
+            if(access(previous_backup.c_str(), F_OK) == 0)
+                restore = loadFromTemporaryPath(previous_backup);
+        }
+
         if(restore == LoadResult::OK)
         {
+            activatePath(previous_path);
             has_active_world = true;
             world_task.setMessage("Load failed; previous world restored.");
             world_task.makeCurrent();
@@ -227,11 +265,11 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
         has_active_world = false;
         if(restore == LoadResult::UNREADABLE)
             activatePath(chooseSavePath(previous_path, restore));
-        // The old active world is unavailable. Return to the startup picker so
-        // users can still create a fresh slot or leave instead of being trapped.
+        // No readable copy was found. Keep the save files intact and return to
+        // the picker with an explicit failure instead of creating a new world.
         mode = WorldLoaderMode::STARTUP;
         refreshSlots();
-        showStatus("Load failed; previous save kept. Select another world.");
+        showStatus("World switch failed; saved copies kept.");
         return;
     }
 
