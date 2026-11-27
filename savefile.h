@@ -21,6 +21,7 @@ void convertV6Inventory(const BLOCK_WDATA (&entries)[5], int current_slot, Playe
 
 std::string backupPathFor(const std::string &path);
 std::string tempPathFor(const std::string &path);
+std::string swapPathFor(const std::string &path);
 std::string newWorldPathFor(const std::string &path);
 
 // Where to save given how the existing world loaded: a fresh path when the old
@@ -31,11 +32,15 @@ std::string chooseSavePath(const std::string &original, LoadResult r);
 int readSaveVersion(const char *path);
 
 // Optional rename hook exists for fault-injection tests. Passing nullptr uses
-// the platform rename(). A failed replacement leaves the old save untouched.
+// the platform rename().
 typedef int (*SaveRenameFunction)(const char *old_path, const char *new_path);
 
-// Write via a temp file and swap in only on success, backing up a pre-v7 save
-// once. Returns false without deleting or truncating the old save on failure.
+// Recover a completed-but-not-promoted temporary save, or restore the previous
+// save if power was lost during the two-rename replacement sequence.
+bool recoverSavePath(const std::string &path, SaveRenameFunction rename_function = nullptr);
+
+// Write via a temporary file. Supports filesystems whose rename() refuses to
+// replace an existing destination, while preserving a rollback copy on failure.
 bool replaceSaveSafely(const std::string &path, bool (*write)(gzFile, void *), void *ctx,
                        SaveRenameFunction rename_function = nullptr);
 
