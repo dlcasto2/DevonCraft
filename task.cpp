@@ -190,7 +190,7 @@ static LoadResult loadUnchecked()
 
 LoadResult Task::load()
 {
-    const LoadResult result = loadUnchecked();
+    const LoadResult result = recoverSavePath(savefile) ? loadUnchecked() : LoadResult::UNREADABLE;
     if(result == LoadResult::UNREADABLE)
     {
         // Loading mutates globals as sections are decoded. If any later section
