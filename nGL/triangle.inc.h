@@ -245,10 +245,12 @@
                     u += du;
                     v += dv;
                     z += dz;
-                    uq += duq;
-                    vq += dvq;
-                    q += dq;
                 }
+                // Perspective accumulators are only needed at the next span boundary.
+                // Advance them once per span instead of once for every rasterized pixel.
+                uq = uq_end + duq;
+                vq = vq_end + dvq;
+                q = q_end + dq;
             }
 #else
             decltype(z_buffer) z_buf = z_buf_line + x1;
@@ -385,10 +387,12 @@
                     u += du;
                     v += dv;
                     z += dz;
-                    uq += duq;
-                    vq += dvq;
-                    q += dq;
                 }
+                // Perspective accumulators are only needed at the next span boundary.
+                // Advance them once per span instead of once for every rasterized pixel.
+                uq = uq_end + duq;
+                vq = vq_end + dvq;
+                q = q_end + dq;
             }
 #else
             decltype(z_buffer) z_buf = z_buf_line + x1;
