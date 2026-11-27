@@ -5,24 +5,43 @@
 /* Create a vertex out of a VECTOR3 and IndexedVertex */
 #define MAKE_VERTEX(vec, iver) { (vec).x, (vec).y, (vec).z, (iver).u, (iver).v, (iver).c }
 
-/* Apply perspective to a ProcessedVertex
- * and return the resulting VERTEX.
- * Caches the result in the ProcessedVertex. */
-static VERTEX perspective(const IndexedVertex &v, ProcessedPosition &p)
+/* Project once per shared position and cache reciprocal depth too.
+ * UV-over-depth still depends on the face's UV coordinates, but tex_q does not. */
+static void projectPosition(ProcessedPosition &p)
 {
-    if(!p.perspective_available)
+    if(p.perspective_available)
+        return;
+
+    p.perspective = p.transformed;
+    nglPerspective(&p.perspective);
+    p.tex_q = perspectiveReciprocalDepth(p.transformed.z, nglGetNearPlane());
+    p.perspective_available = true;
+}
+
+static void attachTexture(VERTEX &vertex, const ProcessedPosition &p)
+{
+    vertex.tex_q = p.tex_q;
+    vertex.u_over_z = perspectiveProduct(vertex.u, p.tex_q);
+    vertex.v_over_z = perspectiveProduct(vertex.v, p.tex_q);
+}
+
+/* A convex projected polygon wholly outside one screen edge cannot contribute
+ * any pixels. Reject it before doing UV setup or entering the rasterizer. */
+static bool offScreen(const VERTEX *vertices, unsigned int count)
+{
+    const GLFix left(-1), right(SCREEN_WIDTH + 1);
+    const GLFix top(-1), bottom(SCREEN_HEIGHT + 1);
+    bool all_left = true, all_right = true, all_above = true, all_below = true;
+
+    for(unsigned int i = 0; i < count; ++i)
     {
-        p.perspective = p.transformed;
-        nglPerspective(&p.perspective);
-        p.perspective_available = true;
+        all_left = all_left && vertices[i].x < left;
+        all_right = all_right && vertices[i].x >= right;
+        all_above = all_above && vertices[i].y < top;
+        all_below = all_below && vertices[i].y >= bottom;
     }
 
-    VERTEX result = MAKE_VERTEX(p.perspective, v);
-    // p.perspective caches only the projected position. Without these values,
-    // the rasterizer divides zero UV/depth attributes and samples atlas (0, 0)
-    // for every aligned chunk vertex, making all block textures appear black.
-    nglSetPerspectiveTextureAttributes(result, nglGetNearPlane());
-    return result;
+    return all_left || all_right || all_above || all_below;
 }
 
 static bool drawTriangle(ProcessedPosition *processed, const IndexedVertex &low, const IndexedVertex &middle, const IndexedVertex &high, bool backface_culling)
@@ -36,16 +55,26 @@ static bool drawTriangle(ProcessedPosition *processed, const IndexedVertex &low,
 
     if(all_in_front)
     {
-        // Preserve the cached perspective path for the normal case where no
-        // vertex approaches or crosses the near plane.
-        VERTEX a = perspective(low, p_low);
-        VERTEX b = perspective(middle, p_middle);
-        VERTEX c = perspective(high, p_high);
+        // Project/cull before calculating face-specific UV-over-depth values.
+        projectPosition(p_low);
+        projectPosition(p_middle);
+        projectPosition(p_high);
 
-        if(backface_culling && nglIsBackface(&a, &b, &c))
+        VERTEX corners[3] = {
+            MAKE_VERTEX(p_low.perspective, low),
+            MAKE_VERTEX(p_middle.perspective, middle),
+            MAKE_VERTEX(p_high.perspective, high)
+        };
+
+        if(backface_culling && nglIsBackface(&corners[0], &corners[1], &corners[2]))
             return false;
+        if(offScreen(corners, 3))
+            return true;
 
-        nglDrawTriangleZClipped(&a, &b, &c);
+        attachTexture(corners[0], p_low);
+        attachTexture(corners[1], p_middle);
+        attachTexture(corners[2], p_high);
+        nglDrawTriangleZClipped(&corners[0], &corners[1], &corners[2]);
         return true;
     }
 
@@ -69,6 +98,9 @@ static bool drawTriangle(ProcessedPosition *processed, const IndexedVertex &low,
     // projected only after the camera-space polygon has been clipped.
     for(unsigned int i = 0; i < clipped_count; ++i)
         nglPerspective(&clipped[i]);
+
+    if(offScreen(clipped, clipped_count))
+        return true;
 
     // Clipping preserves polygon winding. Cull clipped triangles and quads
     // consistently before fan-triangulating the visible polygon.
