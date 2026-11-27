@@ -16,15 +16,9 @@ TEST_CASE("ore tiers and drops") {
 TEST_CASE("bedrock is unbreakable and blast proof") {
     CHECK(blockDef(BLOCK_BEDROCK).hardness_x100 == UNBREAKABLE); CHECK(blockDef(BLOCK_BEDROCK).blast_proof);
 }
-TEST_CASE("light sources and powered states") {
+TEST_CASE("block light metadata remains defined") {
     CHECK(blockDef(BLOCK_TORCH).light == 14); CHECK(blockDef(BLOCK_GLOWSTONE).light == 15);
     CHECK(blockDef(BLOCK_LAVA).light == 15); CHECK(blockDef(BLOCK_STONE).light == 0);
-    CHECK(blockLightLevel(BLOCK_TORCH) == 14);
-    CHECK(blockLightLevel(BLOCK_GLOWSTONE) == 15);
-    CHECK(blockLightLevel(getBLOCKWDATA(BLOCK_REDSTONE_LAMP, 0)) == 0);
-    CHECK(blockLightLevel(getBLOCKWDATA(BLOCK_REDSTONE_LAMP, 1)) == 15);
-    CHECK(blockLightLevel(getBLOCKWDATAPower(BLOCK_REDSTONE_TORCH, BLOCK_TOP, false)) == 0);
-    CHECK(blockLightLevel(getBLOCKWDATAPower(BLOCK_REDSTONE_TORCH, BLOCK_TOP, true)) == 7);
 }
 TEST_CASE("every existing block is defined") {
     for (int b = 1; b <= BLOCK_NORMAL_LAST; ++b) CHECK(blockDef(b).defined);

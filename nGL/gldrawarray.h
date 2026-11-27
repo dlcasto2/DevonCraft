@@ -13,6 +13,7 @@ struct ProcessedPosition {
     VECTOR3 transformed;
     VECTOR3 perspective;
     bool perspective_available;
+    TexFix tex_q; // Cache reciprocal depth once per shared mesh position.
 };
 
 /* Faster way to draw a mesh.
