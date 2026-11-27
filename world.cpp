@@ -158,7 +158,6 @@ void World::setPosition(int x, int y, int z)
         // If an allocation failed, retry the missing chunks on the next
         // logic pass instead of permanently accepting an incomplete region.
         loaded = all_chunks_ready;
-        dynamic_light_sources_dirty = true;
     }
 }
 
@@ -225,9 +224,6 @@ void World::clear()
 
     cen_x = cen_y = cen_z = 0;
     loaded = false;
-    dynamic_light_count = 0;
-    dynamic_light_refresh_ticks = 0;
-    dynamic_light_sources_dirty = true;
 }
 
 void World::setDirty()
@@ -415,130 +411,4 @@ void World::setBrightnessAll(int level)
         c->setBrightness(level);
 }
 
-void World::updateDynamicLighting(int ambient_level, int player_x, int player_y, int player_z, int hand_light_level)
-{
-    if(ambient_level < 0) ambient_level = 0;
-    if(ambient_level >= BRIGHTNESS_LEVELS) ambient_level = BRIGHTNESS_LEVELS - 1;
 
-    // At full daylight there is no brighter level to show. Defer source scans
-    // until dusk, while still preserving invalidation from light block changes.
-    if(ambient_level == BRIGHTNESS_LEVELS - 1 && hand_light_level <= 0)
-    {
-        for(Chunk *chunk : visible_chunks)
-            chunk->setBrightness(ambient_level);
-        return;
-    }
-
-    // Block changes invalidate this cache. The periodic refresh also catches
-    // light state transitions that happen inside block tick handlers.
-    if(dynamic_light_sources_dirty || ++dynamic_light_refresh_ticks >= 8)
-    {
-        dynamic_light_count = 0;
-        for(Chunk *source_chunk : visible_chunks)
-        {
-            for(int x = 0; x < Chunk::SIZE; ++x)
-                for(int y = 0; y < Chunk::SIZE; ++y)
-                    for(int z = 0; z < Chunk::SIZE; ++z)
-                    {
-                        const BLOCK_WDATA block = source_chunk->getLocalBlock(x, y, z);
-                        const int emission = blockLightLevel(block);
-                        if(emission <= 0)
-                            continue;
-
-                        DynamicLightSource source = {
-                            source_chunk->x * Chunk::SIZE + x,
-                            source_chunk->y * Chunk::SIZE + y,
-                            source_chunk->z * Chunk::SIZE + z,
-                            static_cast<uint8_t>(emission)
-                        };
-
-                        if(dynamic_light_count < MAX_DYNAMIC_LIGHT_SOURCES)
-                        {
-                            dynamic_light_sources[dynamic_light_count++] = source;
-                        }
-                        else
-                        {
-                            // Keep the closest 128 emitters if a heavily lit
-                            // build exceeds the fixed calculator-side cache.
-                            unsigned int farthest = 0;
-                            long long farthest_distance = -1;
-                            for(unsigned int i = 0; i < dynamic_light_count; ++i)
-                            {
-                                const long long dx = dynamic_light_sources[i].x - player_x;
-                                const long long dy = dynamic_light_sources[i].y - player_y;
-                                const long long dz = dynamic_light_sources[i].z - player_z;
-                                const long long distance = dx*dx + dy*dy + dz*dz;
-                                if(distance > farthest_distance)
-                                {
-                                    farthest_distance = distance;
-                                    farthest = i;
-                                }
-                            }
-
-                            const long long dx = source.x - player_x;
-                            const long long dy = source.y - player_y;
-                            const long long dz = source.z - player_z;
-                            if(dx*dx + dy*dy + dz*dz < farthest_distance)
-                                dynamic_light_sources[farthest] = source;
-                        }
-                    }
-        }
-
-        dynamic_light_sources_dirty = false;
-        dynamic_light_refresh_ticks = 0;
-    }
-
-    for(Chunk *target : visible_chunks)
-    {
-        int level = ambient_level;
-        const int center_x = target->x * Chunk::SIZE + Chunk::SIZE / 2;
-        const int center_y = target->y * Chunk::SIZE + Chunk::SIZE / 2;
-        const int center_z = target->z * Chunk::SIZE + Chunk::SIZE / 2;
-
-        for(unsigned int i = 0; i < dynamic_light_count; ++i)
-        {
-            const DynamicLightSource &source = dynamic_light_sources[i];
-            int attenuation = 0;
-            const bool same_chunk =
-                source.x >= target->x * Chunk::SIZE && source.x < (target->x + 1) * Chunk::SIZE &&
-                source.y >= target->y * Chunk::SIZE && source.y < (target->y + 1) * Chunk::SIZE &&
-                source.z >= target->z * Chunk::SIZE && source.z < (target->z + 1) * Chunk::SIZE;
-
-            if(!same_chunk)
-            {
-                const int distance = std::abs(source.x - center_x)
-                                   + std::abs(source.y - center_y)
-                                   + std::abs(source.z - center_z);
-                attenuation = distance - (Chunk::SIZE * 3 / 4);
-                if(attenuation < 0)
-                    attenuation = 0;
-            }
-            level = combineDynamicLight(level, source.level, attenuation);
-            if(level == BRIGHTNESS_LEVELS - 1)
-                break;
-        }
-
-        // A selected light source follows the player and is evaluated every
-        // tick; placed sources use cached block coordinates.
-        if(hand_light_level > 0 && level < BRIGHTNESS_LEVELS - 1)
-        {
-            int attenuation = 0;
-            const bool same_chunk =
-                player_x >= target->x * Chunk::SIZE && player_x < (target->x + 1) * Chunk::SIZE &&
-                player_y >= target->y * Chunk::SIZE && player_y < (target->y + 1) * Chunk::SIZE &&
-                player_z >= target->z * Chunk::SIZE && player_z < (target->z + 1) * Chunk::SIZE;
-            if(!same_chunk)
-            {
-                const int distance = std::abs(player_x - center_x)
-                                   + std::abs(player_y - center_y)
-                                   + std::abs(player_z - center_z);
-                attenuation = distance - (Chunk::SIZE * 3 / 4);
-                if(attenuation < 0)
-                    attenuation = 0;
-            }
-            level = combineDynamicLight(level, hand_light_level, attenuation);
-        }
-
-        target->setBrightness(level);
-    }
-}
