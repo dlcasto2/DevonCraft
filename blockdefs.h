@@ -31,7 +31,4 @@ struct BlockDef {
 const BlockDef &blockDef(BLOCK b);
 ItemId dropItemFor(BLOCK b);
 
-// Actual emitted light, including on/off state for lamps and redstone torches.
-int blockLightLevel(BLOCK_WDATA block);
-
 #endif // BLOCKDEFS_H
