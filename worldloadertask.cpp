@@ -40,6 +40,9 @@ void refreshSlots()
 {
     for(unsigned int i = 0; i < WORLD_SLOT_COUNT; ++i)
     {
+        // Recover a completed save left in .tmp by older builds before showing
+        // the slot state or attempting to load it.
+        recoverSavePath(slot_paths[i]);
         slot_exists[i] = access(slot_paths[i].c_str(), F_OK) == 0;
         slot_versions[i] = slot_exists[i] ? readSaveVersion(slot_paths[i].c_str()) : -1;
     }
