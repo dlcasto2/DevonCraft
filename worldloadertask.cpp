@@ -43,6 +43,49 @@ LoadResult loadFromTemporaryPath(const std::string &path)
     return result;
 }
 
+// Keep a byte-for-byte copy of the just-saved active world while another slot
+// is being read. This is especially important for newly created worlds, which
+// may not have a .bak yet.
+bool copySaveFile(const std::string &source_path, const std::string &copy_path)
+{
+    FILE *source = std::fopen(source_path.c_str(), "rb");
+    if(!source)
+        return false;
+
+    FILE *destination = std::fopen(copy_path.c_str(), "wb");
+    if(!destination)
+    {
+        std::fclose(source);
+        return false;
+    }
+
+    char buffer[1024];
+    bool ok = true;
+    for(;;)
+    {
+        const size_t count = std::fread(buffer, 1, sizeof(buffer), source);
+        if(count && std::fwrite(buffer, 1, count, destination) != count)
+        {
+            ok = false;
+            break;
+        }
+        if(count < sizeof(buffer))
+        {
+            if(std::ferror(source))
+                ok = false;
+            break;
+        }
+    }
+
+    if(std::fclose(source) != 0)
+        ok = false;
+    if(std::fclose(destination) != 0)
+        ok = false;
+    if(!ok)
+        std::remove(copy_path.c_str());
+    return ok;
+}
+
 bool supportedVersion(int version)
 {
     return version >= 4 && version <= 8;
@@ -206,16 +249,29 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
 
     const std::string previous_path = active_path;
     const bool had_active_world = has_active_world;
-    if(had_active_world && !Task::save())
+    std::string resume_path;
+    if(had_active_world)
     {
-        showStatus("Current world could not be saved; switch cancelled.");
-        return;
+        if(!Task::save())
+        {
+            showStatus("Current world could not be saved; switch cancelled.");
+            return;
+        }
+
+        resume_path = previous_path + ".switch-restore.tns";
+        if(!copySaveFile(previous_path, resume_path))
+        {
+            showStatus("World saved; recovery copy failed. Switch cancelled.");
+            return;
+        }
     }
 
     activatePath(target_path);
     LoadResult result = Task::load();
     if(result == LoadResult::OK)
     {
+        if(!resume_path.empty())
+            std::remove(resume_path.c_str());
         has_active_world = true;
         world_task.setMessage("World loaded.");
         world_task.makeCurrent();
@@ -230,6 +286,8 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
         const LoadResult backup_result = loadFromTemporaryPath(target_backup);
         if(backup_result == LoadResult::OK)
         {
+            if(!resume_path.empty())
+                std::remove(resume_path.c_str());
             activatePath(target_path);
             has_active_world = true;
             world_task.setMessage("World loaded from backup.");
@@ -244,10 +302,13 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
     {
         activatePath(previous_path);
         LoadResult restore = Task::load();
+        if(restore != LoadResult::OK && !resume_path.empty())
+            restore = loadFromTemporaryPath(resume_path);
+
         if(restore != LoadResult::OK)
         {
-            // The current save should be preferred, but retain a last-resort
-            // route back into play if that file cannot be read.
+            // The canonical save and exact resume copy are preferred; the .bak
+            // is an older last-resort recovery point.
             const std::string previous_backup = backupPathFor(previous_path);
             if(access(previous_backup.c_str(), F_OK) == 0)
                 restore = loadFromTemporaryPath(previous_backup);
@@ -255,6 +316,8 @@ void WorldLoaderTask::selectSlot(unsigned int slot)
 
         if(restore == LoadResult::OK)
         {
+            if(!resume_path.empty())
+                std::remove(resume_path.c_str());
             activatePath(previous_path);
             has_active_world = true;
             world_task.setMessage("Load failed; previous world restored.");
