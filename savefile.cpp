@@ -91,6 +91,7 @@ static std::string withSuffix(const std::string &path, const char *suffix)
 
 std::string backupPathFor(const std::string &path) { return withSuffix(path, "bak"); }
 std::string tempPathFor(const std::string &path) { return withSuffix(path, "tmp"); }
+std::string swapPathFor(const std::string &path) { return withSuffix(path, "swap"); }
 std::string newWorldPathFor(const std::string &path) { return withSuffix(path, "new"); }
 
 std::string chooseSavePath(const std::string &original, LoadResult r)
@@ -149,39 +150,172 @@ static bool copyFile(const std::string &source_path, const std::string &destinat
     return ok;
 }
 
+static bool fileExists(const std::string &path)
+{
+    FILE *file = fopen(path.c_str(), "rb");
+    if(!file)
+        return false;
+    fclose(file);
+    return true;
+}
+
+static bool completeGzipFile(const std::string &path)
+{
+    gzFile file = gzopen(path.c_str(), "rb");
+    if(!file)
+        return false;
+
+    char buffer[1024];
+    int count;
+    do
+    {
+        count = gzread(file, buffer, sizeof(buffer));
+    }
+    while(count > 0);
+
+    int error_code = Z_OK;
+    gzerror(file, &error_code);
+    const int close_result = gzclose(file);
+    return count == 0
+        && (error_code == Z_OK || error_code == Z_STREAM_END)
+        && close_result == Z_OK;
+}
+
+static bool validPendingSave(const std::string &path)
+{
+    const int version = readSaveVersion(path.c_str());
+    return version >= 4 && version <= 8 && completeGzipFile(path);
+}
+
+// Install the already-closed temporary file. The first rename is the fast,
+// atomic path on filesystems that replace existing destinations. On the
+// calculator filesystem, rename may reject an existing destination; in that
+// case move the old file aside, install the completed temp, then clean up.
+// The old file is copied to .bak once before replacement whenever possible.
+static bool installTempSave(const std::string &path, SaveRenameFunction move_file,
+                            bool require_valid_save)
+{
+    const std::string temp = tempPathFor(path);
+    if(require_valid_save && !validPendingSave(temp))
+        return false;
+    if(!fileExists(temp))
+        return false;
+
+    const std::string backup = backupPathFor(path);
+    const bool had_target = fileExists(path);
+
+    if(had_target && !fileExists(backup))
+    {
+        if(!copyFile(path, backup))
+            return false;
+    }
+
+    // POSIX-like implementations replace the destination atomically here.
+    if(move_file(temp.c_str(), path.c_str()) == 0)
+        return true;
+
+    // Some calculator filesystem implementations reject rename when the
+    // destination already exists. Never delete it: move it to a rollback
+    // path, then rename the completed temp into the now-empty destination.
+    if(!had_target || !fileExists(path))
+        return false;
+
+    const std::string swap = swapPathFor(path);
+    if(fileExists(swap) || move_file(path.c_str(), swap.c_str()) != 0)
+        return false;
+
+    if(move_file(temp.c_str(), path.c_str()) == 0)
+    {
+        // A copy of the old save already exists in .bak. If not, preserve the
+        // displaced file there; if that rename fails, .swap remains recoverable.
+        if(fileExists(backup))
+            remove(swap.c_str());
+        else
+            move_file(swap.c_str(), backup.c_str());
+        return true;
+    }
+
+    // The new file could not be installed. Restore the old name; if rename
+    // itself fails, copy the rollback file back without deleting the rollback.
+    if(move_file(swap.c_str(), path.c_str()) != 0 && !copyFile(swap, path))
+        return false;
+    return false;
+}
+
+bool recoverSavePath(const std::string &path, SaveRenameFunction rename_function)
+{
+    const SaveRenameFunction move_file = rename_function ? rename_function : ::rename;
+    const std::string temp = tempPathFor(path);
+    const std::string swap = swapPathFor(path);
+    const std::string backup = backupPathFor(path);
+    bool has_target = fileExists(path);
+    bool has_swap = fileExists(swap);
+
+    // A crash may occur after the old save was moved aside but before the
+    // completed temp was installed. Prefer a fully valid pending save; if it
+    // is incomplete, restore the old save instead.
+    if(!has_target && has_swap)
+    {
+        if(validPendingSave(temp) && move_file(temp.c_str(), path.c_str()) == 0)
+        {
+            if(fileExists(backup))
+                remove(swap.c_str());
+            else
+                move_file(swap.c_str(), backup.c_str());
+            return true;
+        }
+
+        if(move_file(swap.c_str(), path.c_str()) == 0 || copyFile(swap, path))
+            return true;
+        return false;
+    }
+
+    // A crash may occur after the new target was installed but before the
+    // displaced old file was cleaned up.
+    if(has_target && has_swap)
+    {
+        if(!fileExists(backup) && move_file(swap.c_str(), backup.c_str()) == 0)
+            has_swap = false;
+        if(has_swap && fileExists(backup))
+            remove(swap.c_str());
+    }
+
+    // Older builds could leave a complete .tmp when rename over the existing
+    // default world failed. Promote it only after validating the entire gzip
+    // stream and supported save version, keeping the old file recoverable.
+    if(fileExists(path) && validPendingSave(temp))
+        return installTempSave(path, move_file, true);
+
+    // A brand-new world may have a valid temp but no final path yet.
+    if(!fileExists(path) && validPendingSave(temp))
+        return installTempSave(path, move_file, true);
+
+    return true;
+}
+
 bool replaceSaveSafely(const std::string &path, bool (*write)(gzFile, void *), void *ctx,
                        SaveRenameFunction rename_function)
 {
     const SaveRenameFunction move_file = rename_function ? rename_function : ::rename;
-    const std::string temp = tempPathFor(path);
 
-    gzFile f = gzopen(temp.c_str(), "wb");
-    if(!f)
+    // Finish any previous interrupted replacement before reusing the temp path.
+    if(!recoverSavePath(path, move_file))
         return false;
 
-    const bool written = write(f, ctx);
-    const bool closed_ok = gzclose(f) == Z_OK;
+    const std::string temp = tempPathFor(path);
+    gzFile file = gzopen(temp.c_str(), "wb");
+    if(!file)
+        return false;
+
+    const bool written = write(file, ctx);
+    const bool closed_ok = gzclose(file) == Z_OK;
     if(!written || !closed_ok)
     {
         remove(temp.c_str());
         return false;
     }
 
-    const int existing = readSaveVersion(path.c_str());
-    const std::string backup = backupPathFor(path);
-    if(existing >= 0 && existing < 7 && readSaveVersion(backup.c_str()) == -1)
-    {
-        // Copy, do not move: if the replacement rename fails, the old save
-        // remains usable at its original path as well as in the one-time backup.
-        if(!copyFile(path, backup))
-        {
-            remove(temp.c_str());
-            return false;
-        }
-    }
-
-    // On replacement failure retain the original save and the completed .tmp.
-    if(move_file(temp.c_str(), path.c_str()) != 0)
-        return false;
-    return true;
+    // The callback just wrote and closed this temp in this call, so the full
+    // stream is trusted here; the recovery path performs an explicit CRC check.
+    return installTempSave(path, move_file, false);
 }

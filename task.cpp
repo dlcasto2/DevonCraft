@@ -190,7 +190,11 @@ static LoadResult loadUnchecked()
 
 LoadResult Task::load()
 {
-    const LoadResult result = loadUnchecked();
+    const bool recovered = recoverSavePath(savefile);
+    // If recovery cannot move a pending temp, still try the existing save when
+    // its header is readable; recovery failure must not hide the old world.
+    const LoadResult result = (!recovered && readSaveVersion(savefile) < 0)
+                            ? LoadResult::UNREADABLE : loadUnchecked();
     if(result == LoadResult::UNREADABLE)
     {
         // Loading mutates globals as sections are decoded. If any later section

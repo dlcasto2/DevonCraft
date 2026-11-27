@@ -10,6 +10,7 @@
 TEST_CASE("path helpers") {
     CHECK(backupPathFor("/documents/ndless/devoncraft.map.tns") == "/documents/ndless/devoncraft.map.bak.tns");
     CHECK(tempPathFor("/a/devoncraft.map.tns") == "/a/devoncraft.map.tmp.tns");
+    CHECK(swapPathFor("/a/devoncraft.map.tns") == "/a/devoncraft.map.swap.tns");
     CHECK(newWorldPathFor("/a/devoncraft.map.tns") == "/a/devoncraft.map.new.tns");
 }
 TEST_CASE("unreadable save is never overwritten") {
@@ -39,6 +40,16 @@ static bool writeB(gzFile f, void *) { return gzputs(f, "B") == 1; }
 static bool writeFail(gzFile, void *) { return false; }
 static bool writeV8(gzFile f, void *) { int v = 8; return gzwrite(f, &v, sizeof v) == sizeof v; }
 static int denyRename(const char *, const char *) { return -1; }
+static bool pathExistsForTest(const char *path) {
+    FILE *f = std::fopen(path, "rb");
+    if(!f) return false;
+    std::fclose(f); return true;
+}
+static int renameNoReplace(const char *from, const char *to) {
+    if(pathExistsForTest(to)) return -1;
+    return std::rename(from, to);
+}
+static void putV8(const char *p) { gzFile f = gzopen(p, "wb"); int v = 8; gzwrite(f, &v, sizeof v); gzclose(f); }
 static void putV6(const char *p) { gzFile f = gzopen(p, "wb"); int v = 6; gzwrite(f, &v, sizeof v); gzclose(f); }
 static void putV7(const char *p) { gzFile f = gzopen(p, "wb"); int v = 7; gzwrite(f, &v, sizeof v); gzclose(f); }
 TEST_CASE("first v7 save keeps a backup") {
@@ -67,6 +78,46 @@ TEST_CASE("failed legacy replacement keeps the old save and its backup") {
     CHECK(readSaveVersion("/tmp/l.map.bak.tns") == 6);
     CHECK(readSaveVersion("/tmp/l.map.tmp.tns") == 8);
     remove("/tmp/l.map.tns"); remove("/tmp/l.map.bak.tns"); remove("/tmp/l.map.tmp.tns");
+}
+
+TEST_CASE("replacement works when rename refuses an existing destination") {
+    const char *path = "/tmp/no_replace.map.tns";
+    const std::string backup = backupPathFor(path), temp = tempPathFor(path), swap = swapPathFor(path);
+    remove(path); remove(backup.c_str()); remove(temp.c_str()); remove(swap.c_str());
+    putV7(path);
+    CHECK(replaceSaveSafely(path, writeV8, nullptr, renameNoReplace));
+    CHECK(readSaveVersion(path) == 8);
+    CHECK(readSaveVersion(backup.c_str()) == 7);
+    CHECK(readSaveVersion(temp.c_str()) == -1);
+    CHECK(readSaveVersion(swap.c_str()) == -1);
+    remove(path); remove(backup.c_str());
+}
+
+TEST_CASE("complete pending temp save is recovered over the old default save") {
+    const char *path = "/tmp/pending.map.tns";
+    const std::string backup = backupPathFor(path), temp = tempPathFor(path), swap = swapPathFor(path);
+    remove(path); remove(backup.c_str()); remove(temp.c_str()); remove(swap.c_str());
+    putV7(path);
+    putV8(temp.c_str());
+    CHECK(recoverSavePath(path, renameNoReplace));
+    CHECK(readSaveVersion(path) == 8);
+    CHECK(readSaveVersion(backup.c_str()) == 7);
+    CHECK(readSaveVersion(temp.c_str()) == -1);
+    remove(path); remove(backup.c_str());
+}
+
+TEST_CASE("interrupted replacement promotes a valid temp and preserves the displaced save") {
+    const char *path = "/tmp/interrupted.map.tns";
+    const std::string backup = backupPathFor(path), temp = tempPathFor(path), swap = swapPathFor(path);
+    remove(path); remove(backup.c_str()); remove(temp.c_str()); remove(swap.c_str());
+    putV7(swap.c_str());
+    putV8(temp.c_str());
+    CHECK(recoverSavePath(path, renameNoReplace));
+    CHECK(readSaveVersion(path) == 8);
+    CHECK(readSaveVersion(backup.c_str()) == 7);
+    CHECK(readSaveVersion(temp.c_str()) == -1);
+    CHECK(readSaveVersion(swap.c_str()) == -1);
+    remove(path); remove(backup.c_str());
 }
 
 TEST_CASE("survival section rejects an out-of-range hotbar selection") {
